@@ -6,8 +6,6 @@
 
 #include "compiler.h"
 
-#define PLEA_DEBUG
-
 #define da_append(a,i,n)                                                    \
     do {                                                                    \
         if ((a)->count == (a)->capacity) {                                  \
