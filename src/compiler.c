@@ -110,10 +110,7 @@ int compile_function_declaration(Compiler *compiler) {
     while (peek_token(compiler).kind != CALLS) {
         expect_token(compiler, LET);
 
-        compiler->cur_function.vars[compiler->cur_function.vars_count] = (Var){
-            .name = consume_token(compiler).ident_name,
-            .as = 0
-        };
+        char *parameter_name = strdup(consume_token(compiler).ident_name);
         compiler->cur_function.arity++;
 
         expect_token(compiler, IN);
@@ -123,6 +120,10 @@ int compile_function_declaration(Compiler *compiler) {
             error("Unknown type", __LINE__);
         }
         if (type != VOID) {
+            compiler->cur_function.vars[compiler->cur_function.vars_count] = (Var){
+                .name = parameter_name,
+                .as = 0
+            };
             add_bytes(compiler->code, 2, OP_POP, compiler->cur_function.vars_count++);
         }
     }
@@ -276,32 +277,45 @@ Code *compile(Token_List *tokens) {
             case CALL:
                 char *function_name = strdup(consume_token(&compiler).ident_name);
                 expect_token(&compiler, IN);
-                for (int i = 0; i < compiler.cur_function.vars_count; i++) {
-                    if (strcmp(peek_token(&compiler).ident_name, compiler.cur_function.vars[i].name) == 0) {
-                        add_bytes(compiler.code, 2, OP_PUSH, i);
+
+                int arguments = 0;
+                for (; ;) {
+                    arguments++;
+                    for (int i = 0; i < compiler.cur_function.vars_count; i++) {
+                        if (strcmp(peek_token(&compiler).ident_name, compiler.cur_function.vars[i].name) == 0) {
+                            add_bytes(compiler.code, 2, OP_PUSH, i);
+                            break;
+                        }
+                        if (i == compiler.cur_function.vars_count - 1 && strcmp(peek_token(&compiler).ident_name, "input") != 0) {
+                            error("Variable not found", __LINE__);
+                        }
+                        else if (i == compiler.cur_function.vars_count - 1) {
+                            //todo
+                        }
+                    }
+                    consume_token(&compiler);
+                    if (peek_token(&compiler).kind != COMMA) {
+                        da_append(compiler.code, OP_CALL, bytes);
+                        add_string(compiler.code, function_name);
+                        expect_token(&compiler, ENDIN);
                         break;
                     }
-                    if (i == compiler.cur_function.vars_count - 1 && strcmp(peek_token(&compiler).ident_name, "input") != 0) {
-                        error("Variable not found", __LINE__);
-                    }
-                    else if (i == compiler.cur_function.vars_count - 1) {
-                        //todo
-                    }
+                    consume_token(&compiler);
                 }
-                da_append(compiler.code, OP_CALL, bytes);
-                add_string(compiler.code, function_name);
+                //TODO: check if the amount of arguments provided is equal to the arity of the function being called
 
-                consume_token(&compiler);
-                expect_token(&compiler, ENDIN);
                 if (peek_token(&compiler).kind != SEMICOLON) expect_token(&compiler, THEN);
                 break;
             default: error("MALFORMED TOKEN", __LINE__);
             }
+            token = consume_token(&compiler);
         }
-        else if (peek_token(&compiler).kind == FNCTN) {
+        else if (compiler.tokens->toks[compiler.pos].kind == FNCTN) {
             compiler.is_in_function = 1;
         }
-        token = consume_token(&compiler);
+        else {
+            token = consume_token(&compiler);
+        }
     }
     return compiler.code;
 }

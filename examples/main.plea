@@ -1,11 +1,15 @@
 beg "please family great almighty program !!!!!!!!!!";
 This is a comment
 
+fnctn returns 5 nm test args let a in int calls
+    call print in a endin
+;
+
 fnctn returns 0 nm main args let v in void calls
     let a = 272 then
     let b = 0 then
     chg a,*-.x200 then
-    call print in a endin then
+    call test in a endin then
     chg a,b+.x72+ then
     call print in a endin
 ;

@@ -56,10 +56,12 @@ uint8_t consume_byte(Code *code, int *cur_byte) {
 void check_beg_text(char *beg_text);
 
 void run_bytecode(Code *code) {
+    int return_stack[16];
     int stack[1024];
     Var vars[256];
 
     int *stack_ptr = stack;
+    int *return_stack_ptr = return_stack;
 
     int cur_byte = 0;
     if (code->bytes[cur_byte] != OP_BEG) {
@@ -109,7 +111,7 @@ void run_bytecode(Code *code) {
                     }
                     consume_byte(code, &cur_byte);
 
-                    push(&stack_ptr, cur_byte);
+                    push(&return_stack_ptr, cur_byte);
                     cur_byte = code->function_list->functions[i].location;
                     break;
                 }
@@ -126,7 +128,7 @@ void run_bytecode(Code *code) {
             break;
         case OP_RET:
             pop(&stack_ptr);
-            cur_byte = pop(&stack_ptr);
+            cur_byte = pop(&return_stack_ptr);
             break;
         case OP_BEG:
             check_beg_text((char *)&code->bytes[cur_byte+1]);
