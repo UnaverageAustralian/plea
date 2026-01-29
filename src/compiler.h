@@ -10,12 +10,24 @@ typedef enum {
     OP_SET_VAR, OP_CHG_VAR,
     OP_REASSIGN, OP_PUSH,
     OP_POP, OP_CALL, OP_RET,
-    OP_FNCTN, OP_HLT, OP_BEG
+    OP_FNCTN, OP_HLT, OP_BEG,
+    OP_PUSHI
 } Op_Code;
 
 typedef struct {
     char *name;
+    union {
+        int integer;
+        float real;
+    } as;
+} Var;
+
+typedef struct {
+    char *name;
     int location;
+    int arity;
+    Var *vars;
+    int vars_count;
 } Function;
 
 typedef struct {
@@ -39,20 +51,11 @@ typedef struct {
 } Code;
 
 typedef struct {
-    char *name;
-    union {
-        int integer;
-        float real;
-    } as;
-} Var;
-
-typedef struct {
     Code *code;
     Token_List *tokens;
-    Var vars[256];
-    int vars_count;
     int pos;
     int is_in_function;
+    Function cur_function;
 } Compiler;
 
 Code *compile(Token_List *tokens);

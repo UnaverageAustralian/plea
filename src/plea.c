@@ -41,8 +41,10 @@ void run(char *src) {
     printf("%s", disassemble(code));
 #endif
 
+#ifndef PLEA_DEBUG
     printf("-----OUTPUT-----\n");
     run_bytecode(code);
+#endif
 
     free_code(code);
 }

@@ -80,6 +80,7 @@ void lex_ident_or_keyword(Lexer *lexer) {
     for (int i = 0; c != '\n'; i++) {
         if (i > 255) {
             fprintf(stderr, "Identifier is too long");
+            exit(1);
         }
 
         ident_name[i] = c;

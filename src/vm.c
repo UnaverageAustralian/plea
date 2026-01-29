@@ -33,6 +33,7 @@ void sb_appendf(String_Builder *sb, char *format, ...) {
     va_start(args, format);
     vsnprintf(sb->string + sb->count, needed_size + 1, format, args);
     sb->count += needed_size;
+    va_end(args);
 }
 
 void push(int **stack_ptr, int val) {
@@ -63,6 +64,7 @@ void run_bytecode(Code *code) {
     int cur_byte = 0;
     if (code->bytes[cur_byte] != OP_BEG) {
         fprintf(stderr, "Programmer has insufficiently begged");
+        exit(1);
     }
     while (code->bytes[cur_byte] != OP_HLT) {
         switch (code->bytes[cur_byte]) {
@@ -87,6 +89,10 @@ void run_bytecode(Code *code) {
             break;
         case OP_PUSH:
             push(&stack_ptr, vars[consume_byte(code, &cur_byte)].as.integer);
+            consume_byte(code, &cur_byte);
+            break;
+        case OP_PUSHI:
+            push(&stack_ptr, consume_byte(code, &cur_byte));
             consume_byte(code, &cur_byte);
             break;
         case OP_POP:
@@ -119,6 +125,7 @@ void run_bytecode(Code *code) {
             }
             break;
         case OP_RET:
+            pop(&stack_ptr);
             cur_byte = pop(&stack_ptr);
             break;
         case OP_BEG:
@@ -177,7 +184,11 @@ char *disassemble(Code *code) {
             sb_appendf(&disasm, "\tPUSH %d\n", consume_byte(code, &i));
             consume_byte(code, &i);
             break;
-        case OP_POP:\
+        case OP_PUSHI:
+            sb_appendf(&disasm, "\tPUSHI %d\n", consume_byte(code, &i));
+            consume_byte(code, &i);
+            break;
+        case OP_POP:
             sb_appendf(&disasm, "\tPOP %d\n", consume_byte(code, &i));
             consume_byte(code, &i);
             break;
@@ -190,7 +201,7 @@ char *disassemble(Code *code) {
             consume_byte(code, &i);
             break;
         case OP_RET:
-            sb_appendf(&disasm, "\tRET %d\n", consume_byte(code, &i));
+            sb_append(&disasm, "\tRET\n");
             consume_byte(code, &i);
             break;
         case OP_BEG:
