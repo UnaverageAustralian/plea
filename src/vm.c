@@ -8,6 +8,8 @@
 
 #include "vm.h"
 
+#define MAX_SCOPE 16
+
 void sb_append(String_Builder *sb, char *str) {
     sb->count += strlen(str);
     while (sb->count > sb->capacity) {
@@ -36,6 +38,12 @@ void sb_appendf(String_Builder *sb, char *format, ...) {
     va_end(args);
 }
 
+Var *allocate_scope(Var *vars, int scope) {
+    vars = realloc(vars, (scope+1)*256*sizeof(Var));
+    assert(vars != NULL);
+    return vars;
+}
+
 void push(int **stack_ptr, int val) {
     **stack_ptr = val;
     (*stack_ptr)++;
@@ -56,13 +64,14 @@ uint8_t consume_byte(Code *code, int *cur_byte) {
 void check_beg_text(char *beg_text);
 
 void run_bytecode(Code *code) {
-    int return_stack[16];
+    int return_stack[MAX_SCOPE];
     int stack[1024];
-    Var vars[256];
+    Var *vars = malloc(256 * sizeof(Var));
 
     int *stack_ptr = stack;
     int *return_stack_ptr = return_stack;
 
+    int scope = -1;
     int cur_byte = 0;
     if (code->bytes[cur_byte] != OP_BEG) {
         fprintf(stderr, "Programmer has insufficiently begged");
@@ -84,13 +93,13 @@ void run_bytecode(Code *code) {
             break;
         case OP_SET_VAR:
         case OP_CHG_VAR:
-            int index = consume_byte(code, &cur_byte);
+            int index = consume_byte(code, &cur_byte) + scope*256;
             int val = consume_byte(code, &cur_byte);
             vars[index].as.integer = val;
             consume_byte(code, &cur_byte);
             break;
         case OP_PUSH:
-            push(&stack_ptr, vars[consume_byte(code, &cur_byte)].as.integer);
+            push(&stack_ptr, vars[consume_byte(code, &cur_byte) + scope*256].as.integer);
             consume_byte(code, &cur_byte);
             break;
         case OP_PUSHI:
@@ -98,7 +107,7 @@ void run_bytecode(Code *code) {
             consume_byte(code, &cur_byte);
             break;
         case OP_POP:
-            vars[consume_byte(code, &cur_byte)].as.integer = pop(&stack_ptr);
+            vars[consume_byte(code, &cur_byte) + scope*256].as.integer = pop(&stack_ptr);
             consume_byte(code, &cur_byte);
             break;
         case OP_CALL:
@@ -113,6 +122,13 @@ void run_bytecode(Code *code) {
 
                     push(&return_stack_ptr, cur_byte);
                     cur_byte = code->function_list->functions[i].location;
+
+                    scope++;
+                    vars = allocate_scope(vars, scope);
+                    if (scope >= MAX_SCOPE) {
+                        fprintf(stderr, "The scope is too deep");
+                        exit(1);
+                    }
                     break;
                 }
                 if (i == code->function_list->count - 1) {
@@ -129,6 +145,7 @@ void run_bytecode(Code *code) {
         case OP_RET:
             pop(&stack_ptr);
             cur_byte = pop(&return_stack_ptr);
+            scope--;
             break;
         case OP_BEG:
             check_beg_text((char *)&code->bytes[cur_byte+1]);
@@ -146,6 +163,7 @@ void run_bytecode(Code *code) {
         default: break;
         }
     }
+    free(vars);
 }
 
 char *disassemble(Code *code) {
