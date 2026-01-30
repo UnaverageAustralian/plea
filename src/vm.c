@@ -38,8 +38,8 @@ void sb_appendf(String_Builder *sb, char *format, ...) {
     va_end(args);
 }
 
-Var *allocate_scope(Var *vars, int scope) {
-    vars = realloc(vars, (scope+1)*256*sizeof(Var));
+int *allocate_scope(int *vars, int scope) {
+    vars = realloc(vars, (scope+1)*256*sizeof(int));
     assert(vars != NULL);
     return vars;
 }
@@ -66,7 +66,7 @@ void check_beg_text(char *beg_text);
 void run_bytecode(Code *code) {
     int return_stack[MAX_SCOPE];
     int stack[1024];
-    Var *vars = malloc(256 * sizeof(Var));
+    int *vars = malloc(256 * sizeof(int));
 
     int *stack_ptr = stack;
     int *return_stack_ptr = return_stack;
@@ -95,11 +95,11 @@ void run_bytecode(Code *code) {
         case OP_CHG_VAR:
             int index = consume_byte(code, &cur_byte) + scope*256;
             int val = consume_byte(code, &cur_byte);
-            vars[index].as.integer = val;
+            vars[index] = val;
             consume_byte(code, &cur_byte);
             break;
         case OP_PUSH:
-            push(&stack_ptr, vars[consume_byte(code, &cur_byte) + scope*256].as.integer);
+            push(&stack_ptr, vars[consume_byte(code, &cur_byte) + scope*256]);
             consume_byte(code, &cur_byte);
             break;
         case OP_PUSHI:
@@ -107,7 +107,7 @@ void run_bytecode(Code *code) {
             consume_byte(code, &cur_byte);
             break;
         case OP_POP:
-            vars[consume_byte(code, &cur_byte) + scope*256].as.integer = pop(&stack_ptr);
+            vars[consume_byte(code, &cur_byte) + scope*256] = pop(&stack_ptr);
             consume_byte(code, &cur_byte);
             break;
         case OP_CALL:
