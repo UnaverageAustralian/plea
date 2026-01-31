@@ -249,7 +249,19 @@ void compile_function_call(Compiler *compiler) {
         }
         consume_token(compiler);
     }
-    //TODO: check if the amount of arguments provided is equal to the arity of the function being called
+    for (int i = 0; i < compiler->code->function_list->count; i++) {
+        if (strcmp(function_name, compiler->code->function_list->functions[i].name) == 0) {
+            if (compiler->code->function_list->functions[i].arity != arguments)
+                error("Function call has wrong amount of arguments", __LINE__);
+            break;
+        }
+        if (i == compiler->code->function_list->count - 1 && strcmp(function_name, "print") == 0) {
+            if (arguments != 1) error("Function call has wrong amount of arguments", __LINE__);
+        }
+        else if (i == compiler->code->function_list->count - 1) {
+            error("Function not found", __LINE__);
+        }
+    }
 }
 
 void init_compiler(Token_List *tokens, Compiler *compiler) {
