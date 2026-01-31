@@ -233,11 +233,11 @@ void compile_function_call(Compiler *compiler) {
                 add_bytes(compiler->code, 2, OP_PUSH, i);
                 break;
             }
-            if (i == compiler->cur_function->vars_count - 1 && strcmp(peek_token(compiler).ident_name, "input") != 0) {
-                error("Variable not found", __LINE__);
+            if (i == compiler->cur_function->vars_count - 1 && strcmp(peek_token(compiler).ident_name, "input") == 0) {
+                da_append(compiler->code, OP_INPUT, bytes);
             }
             else if (i == compiler->cur_function->vars_count - 1) {
-                //todo
+                error("Variable not found", __LINE__);
             }
         }
         consume_token(compiler);

@@ -11,7 +11,7 @@ typedef enum {
     OP_REASSIGN, OP_PUSH,
     OP_POP, OP_CALL, OP_RET,
     OP_FNCTN, OP_HLT, OP_BEG,
-    OP_PUSHI
+    OP_PUSHI, OP_INPUT
 } Op_Code;
 
 typedef struct {

@@ -77,6 +77,12 @@ void run_bytecode(Code *code) {
         fprintf(stderr, "Programmer has insufficiently begged");
         exit(1);
     }
+
+    String_Builder output = (String_Builder){
+        .count = 0,
+        .capacity = 4,
+        .string = malloc(4 * sizeof(char))
+    };
     while (code->bytes[cur_byte] != OP_HLT) {
         switch (code->bytes[cur_byte]) {
         case OP_CONST:
@@ -133,7 +139,7 @@ void run_bytecode(Code *code) {
                 }
                 if (i == code->function_list->count - 1) {
                     if (strcmp(func_name, "print") == 0) {
-                        printf("%c", pop(&stack_ptr));
+                        sb_appendf(&output, "%c", pop(&stack_ptr));
                         while (code->bytes[cur_byte] != 0) {
                             consume_byte(code, &cur_byte);
                         }
@@ -160,9 +166,20 @@ void run_bytecode(Code *code) {
             }
             consume_byte(code, &cur_byte);
             break;
+        case OP_INPUT:
+            char c;
+            scanf("%c", &c);
+            push(&stack_ptr, c);
+            consume_byte(code, &cur_byte);
+            break;
         default: break;
         }
     }
+
+    printf("-----OUTPUT-----\n");
+    printf("%s\n", output.string);
+
+    free(output.string);
     free(vars);
 }
 
@@ -242,6 +259,10 @@ char *disassemble(Code *code) {
             break;
         case OP_HLT:
             sb_append(&disasm, "\tHLT\n");
+            consume_byte(code, &i);
+            break;
+        case OP_INPUT:
+            sb_append(&disasm, "\tINPUT\n");
             consume_byte(code, &i);
             break;
         default: fprintf(stderr, "Unknown instruction: %d", code->bytes[i]); exit(1);

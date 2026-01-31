@@ -9,7 +9,7 @@ fnctn returns 0 nm main args let v in void calls
     let a = 272 then
     let b = 0 then
     chg a,*-.x200 then
-    call test in a endin then
+    call test in input endin then
     chg a,b+.x72+ then
     call print in a endin
 ;

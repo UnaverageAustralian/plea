@@ -42,7 +42,6 @@ void run(char *src) {
 #endif
 
 #ifndef PLEA_DEBUG
-    printf("-----OUTPUT-----\n");
     run_bytecode(code);
 #endif
 
