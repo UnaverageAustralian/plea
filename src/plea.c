@@ -50,7 +50,7 @@ void run(char *src) {
 
 int main(int argc, char** argv) {
     if (argc != 2) {
-        printf("Usage: plea <file>");
+        printf("Usage: plea <file>\n");
         exit(1);
     }
 
