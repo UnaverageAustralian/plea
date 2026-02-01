@@ -74,7 +74,7 @@ void run_bytecode(Code *code) {
     int scope = -1;
     int cur_byte = 0;
     if (code->bytes[cur_byte] != OP_BEG) {
-        fprintf(stderr, "Programmer has insufficiently begged");
+        fprintf(stderr, "Programmer has insufficiently begged\n");
         exit(1);
     }
 
@@ -132,7 +132,7 @@ void run_bytecode(Code *code) {
                     scope++;
                     vars = allocate_scope(vars, scope);
                     if (scope >= MAX_SCOPE) {
-                        fprintf(stderr, "The scope is too deep");
+                        fprintf(stderr, "The scope is too deep\n");
                         exit(1);
                     }
                     break;
@@ -265,7 +265,7 @@ char *disassemble(Code *code) {
             sb_append(&disasm, "\tINPUT\n");
             consume_byte(code, &i);
             break;
-        default: fprintf(stderr, "Unknown instruction: %d", code->bytes[i]); exit(1);
+        default: fprintf(stderr, "Unknown instruction: %d\n", code->bytes[i]); exit(1);
         }
     }
     return disasm.string;
@@ -283,11 +283,11 @@ void check_beg_text(char *beg_text) {
         else if (beg_text[i] == '!') num_excl++;
     }
     if (num_spaces == 0) {
-        fprintf(stderr, "Programmer has insufficiently begged");
+        fprintf(stderr, "Programmer has insufficiently begged\n");
         exit(1);
     }
     if (num_chars/num_spaces > 10) {
-        fprintf(stderr, "Programmer has insufficiently begged");
+        fprintf(stderr, "Programmer has insufficiently begged\n");
         exit(1);
     }
 
@@ -316,7 +316,7 @@ void check_beg_text(char *beg_text) {
     }
 
     if (rand()%100 >= probability) {
-        fprintf(stderr, "Programmer has insufficiently begged");
+        fprintf(stderr, "Programmer has insufficiently begged\n");
         exit(1);
     }
 }

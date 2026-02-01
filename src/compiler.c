@@ -54,7 +54,7 @@ void error(char *message, int line) {
 #ifdef PLEA_DEBUG
     fprintf(stderr, "%d: %s", line, message);
 #else
-    fprintf(stderr, "%s", message);
+    fprintf(stderr, "%s\n", message);
 #endif
     exit(1);
 }
@@ -63,9 +63,9 @@ void expect_token(Compiler *compiler, Token_Kind token_kind) {
     compiler->pos++;
     if (compiler->tokens->toks[compiler->pos].kind != token_kind) {
 #ifdef PLEA_DEBUG
-        fprintf(stderr, "Expected %s, got %s", token_to_string(token_kind), token_to_string(compiler->tokens->toks[compiler->pos].kind));
+        fprintf(stderr, "Expected %s, got %s\n", token_to_string(token_kind), token_to_string(compiler->tokens->toks[compiler->pos].kind));
 #else
-        fprintf(stderr, "%d", token_kind);
+        fprintf(stderr, "%d\n", token_kind);
 #endif
         exit(1);
     }
@@ -75,9 +75,9 @@ Token get_and_expect_token(Compiler *compiler, Token_Kind token_kind) {
     compiler->pos++;
     if (compiler->tokens->toks[compiler->pos].kind != token_kind) {
 #ifdef PLEA_DEBUG
-        fprintf(stderr, "Expected %s, got %s", token_to_string(token_kind), token_to_string(compiler->tokens->toks[compiler->pos].kind));
+        fprintf(stderr, "Expected %s, got %s\n", token_to_string(token_kind), token_to_string(compiler->tokens->toks[compiler->pos].kind));
 #else
-        fprintf(stderr, "%d", token_kind);
+        fprintf(stderr, "%d\n", token_kind);
 #endif
         exit(1);
     }

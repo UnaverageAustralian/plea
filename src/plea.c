@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     FILE *f = fopen(argv[1], "rb");
 
     if (!f) {
-        fprintf(stderr, "Could not find the file \"%s\"", argv[1]);
+        fprintf(stderr, "Could not find the file \"%s\"\n", argv[1]);
         exit(1);
     }
 
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 
     char *buffer = malloc(length + 1);
     if (!buffer) {
-        fprintf(stderr, "Could not read the file \"%s\"", argv[1]);
+        fprintf(stderr, "Could not read the file \"%s\"\n", argv[1]);
         exit(1);
     }
 
