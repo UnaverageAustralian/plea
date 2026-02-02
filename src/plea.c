@@ -42,7 +42,9 @@ void run(char *src) {
 #endif
 
 #ifndef PLEA_DEBUG
+#ifndef PLEA_LEXER_DEBUG
     run_bytecode(code);
+#endif
 #endif
 
     free_code(code);

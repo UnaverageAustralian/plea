@@ -48,6 +48,11 @@ void lex_number(Lexer *lexer) {
 
     char c = *(lexer->src + lexer->pos - 1);
     for (int i = 0; c != '\n'; i++) {
+        if (i == 0 & c == '-') {
+            number[0] = '-';
+            c = consume(lexer);
+            continue;
+        }
         if (c == '.') *token_kind = REAL;
 
         if (i >= 47) {
@@ -58,7 +63,7 @@ void lex_number(Lexer *lexer) {
         number[i] = c;
         number[i+1] = '\0';
 
-        if (peek(lexer) == '\0' || (!isdigit(peek(lexer)) && peek(lexer) != '.' && peek(lexer) != '-')) break;
+        if (peek(lexer) == '\0' || (!isdigit(peek(lexer)) && peek(lexer) != '.')) break;
         c = consume(lexer);
     }
 

@@ -185,7 +185,7 @@ void compile_let(Compiler *compiler) {
     int val = get_and_expect_token(compiler, INTEGER).int_val;
     compiler->cur_function->vars[compiler->cur_function->vars_count].as.integer = val;
 
-    if (val < 256) {
+    if (val < 256 && val >= 0) {
         add_bytes(compiler->code, 3, OP_SET_VAR, compiler->cur_function->vars_count, val);
     }
     else {
