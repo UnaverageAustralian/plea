@@ -8,4 +8,4 @@ A high-level esoteric programming language.
 `plea <source file>`
 
 ## Examples
-There are two sample programs in the examples folder, the first one is self-explanatory, and the second one is meant to show the capabilities of the Plea interpreter.
+There are three sample programs in the examples folder. The first program is a cat program, which is a program that prints whatever you input into it (though Plea's cat program is currently limited to just one character per input), the second program is self-explanatory, and the third program is meant to show the capabilities of the Plea interpreter.
