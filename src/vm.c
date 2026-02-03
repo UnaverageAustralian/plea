@@ -78,11 +78,6 @@ void run_bytecode(Code *code) {
         exit(1);
     }
 
-    String_Builder output = (String_Builder){
-        .count = 0,
-        .capacity = 4,
-        .string = malloc(4 * sizeof(char))
-    };
     while (code->bytes[cur_byte] != OP_HLT) {
         switch (code->bytes[cur_byte]) {
         case OP_CONST:
@@ -139,7 +134,7 @@ void run_bytecode(Code *code) {
                 }
                 if (i == code->function_list->count - 1) {
                     if (strcmp(func_name, "print") == 0) {
-                        sb_appendf(&output, "%c", pop(&stack_ptr));
+                        printf("%c", pop(&stack_ptr));
                         while (code->bytes[cur_byte] != 0) {
                             consume_byte(code, &cur_byte);
                         }
@@ -168,18 +163,17 @@ void run_bytecode(Code *code) {
             break;
         case OP_INPUT:
             char c;
-            scanf("%c", &c);
+            printf("\n");
+            scanf(" %c", &c);
             push(&stack_ptr, c);
             consume_byte(code, &cur_byte);
+            break;
+        case OP_JMP:
+            cur_byte = code->line_positions->positions[pop(&stack_ptr)];
             break;
         default: break;
         }
     }
-
-    printf("-----OUTPUT-----\n");
-    printf("%s\n", output.string);
-
-    free(output.string);
     free(vars);
 }
 
@@ -194,7 +188,7 @@ char *disassemble(Code *code) {
     while (i < code->count) {
         switch (code->bytes[i]) {
         case OP_CONST:
-            sb_appendf(&disasm, "\tCONST %d\n", consume_byte(code, &i));
+            sb_appendf(&disasm, "\tCONST %d (%d)\n", consume_byte(code, &i), code->constant_list->constants[code->bytes[i]]);
             consume_byte(code, &i);
             break;
         case OP_INC:
@@ -263,6 +257,10 @@ char *disassemble(Code *code) {
             break;
         case OP_INPUT:
             sb_append(&disasm, "\tINPUT\n");
+            consume_byte(code, &i);
+            break;
+        case OP_JMP:
+            sb_appendf(&disasm, "\tJMP\n");
             consume_byte(code, &i);
             break;
         default: fprintf(stderr, "Unknown instruction: %d\n", code->bytes[i]); exit(1);

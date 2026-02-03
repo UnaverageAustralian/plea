@@ -145,7 +145,11 @@ Token_List lex(char *src) {
         .tokens = &tokens
     };
 
-    for (char c; (c = consume(&lexer)) != '\0';) {
+    char c;
+    for (; ;) {
+        c = consume(&lexer);
+        if (c == '\0') break;
+
         switch (c) {
         case '[': add_token(&tokens, L_BRACKET); break;
         case ']': add_token(&tokens, R_BRACKET); break;

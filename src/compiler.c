@@ -228,16 +228,18 @@ void compile_function_call(Compiler *compiler) {
     int arguments = 0;
     for (; ;) {
         arguments++;
-        for (int i = 0; i < compiler->cur_function->vars_count; i++) {
-            if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i].name) == 0) {
-                add_bytes(compiler->code, 2, OP_PUSH, i);
-                break;
-            }
-            if (i == compiler->cur_function->vars_count - 1 && strcmp(peek_token(compiler).ident_name, "input") == 0) {
-                da_append(compiler->code, OP_INPUT, bytes);
-            }
-            else if (i == compiler->cur_function->vars_count - 1) {
-                error("Variable not found", __LINE__);
+        if (strcmp(peek_token(compiler).ident_name, "input") == 0) {
+            da_append(compiler->code, OP_INPUT, bytes);
+        }
+        else {
+            for (int i = 0; i < compiler->cur_function->vars_count; i++) {
+                if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i].name) == 0) {
+                    add_bytes(compiler->code, 2, OP_PUSH, i);
+                    break;
+                }
+                if (i == compiler->cur_function->vars_count - 1) {
+                    error("Variable not found", __LINE__);
+                }
             }
         }
         consume_token(compiler);
@@ -264,6 +266,33 @@ void compile_function_call(Compiler *compiler) {
     }
 }
 
+void compile_jump(Compiler *compiler) {
+    int cur_line = (int)compiler->code->line_positions->count-1;
+
+    expect_token(compiler, UNDER);
+    if (cur_line >= 256 || cur_line < 0) {
+        add_bytes(compiler->code, 2, OP_CONST, compiler->code->constant_list->count);
+        da_append(compiler->code->constant_list, cur_line, constants);
+    }
+    else {
+        add_bytes(compiler->code, 2, OP_PUSHI, cur_line);
+    }
+
+    while (peek_token(compiler).kind == PLUS || peek_token(compiler).kind == MINUS) {
+        if (peek_token(compiler).kind == PLUS) {
+            da_append(compiler->code, OP_INC, bytes);
+        }
+        else if (peek_token(compiler).kind == MINUS) {
+            da_append(compiler->code, OP_DEC, bytes);
+        }
+        else {
+            error("MALFORMED TOKEN", __LINE__);
+        }
+        consume_token(compiler);
+    }
+    da_append(compiler->code, OP_JMP, bytes);
+}
+
 void init_compiler(Token_List *tokens, Compiler *compiler) {
     Code *code = malloc(sizeof(Code));
     code->count = 0;
@@ -280,12 +309,17 @@ void init_compiler(Token_List *tokens, Compiler *compiler) {
     code->constant_list->capacity = 4;
     code->constant_list->constants = malloc(4 * sizeof(int));
 
+    code->line_positions = malloc(sizeof(Line_Pos_List));
+    code->line_positions->count = 0;
+    code->line_positions->capacity = 4;
+    code->line_positions->positions = malloc(4 * sizeof(int));
+
     *compiler = (Compiler){
         .code = code,
         .tokens = tokens,
         .pos = 0,
         .is_in_function = 0,
-        .cur_function = NULL
+        .cur_function = NULL,
     };
 }
 
@@ -303,6 +337,8 @@ Code *compile(Token_List *tokens) {
     da_append(compiler.code, OP_CALL, bytes);
     add_string(compiler.code, "main");
     da_append(compiler.code, OP_HLT, bytes);
+
+    da_append(compiler.code->line_positions, compiler.code->count, positions);
 
     int cur_ret_val = 0;
     Token token = compiler.tokens->toks[compiler.pos];
@@ -329,8 +365,13 @@ Code *compile(Token_List *tokens) {
                 compile_function_call(&compiler);
                 if (peek_token(&compiler).kind != SEMICOLON) expect_token(&compiler, THEN);
                 break;
+            case JMP:
+                compile_jump(&compiler);
+                if (peek_token(&compiler).kind != SEMICOLON) expect_token(&compiler, THEN);
+                break;
             default: error("MALFORMED TOKEN", __LINE__);
             }
+            da_append(compiler.code->line_positions, compiler.code->count, positions);
             token = consume_token(&compiler);
         }
         else if (compiler.tokens->toks[compiler.pos].kind == FNCTN) {
@@ -340,5 +381,6 @@ Code *compile(Token_List *tokens) {
             token = consume_token(&compiler);
         }
     }
+    compiler.code->line_positions->count--;
     return compiler.code;
 }

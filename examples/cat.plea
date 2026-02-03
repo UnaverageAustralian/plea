@@ -1,0 +1,6 @@
+beg "please family great almighty program !!!!!!!!!!";
+
+fnctn returns 0 nm main args let v in void calls
+    call print in input endin then
+    jmp _-
+;

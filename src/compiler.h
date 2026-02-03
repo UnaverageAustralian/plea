@@ -11,7 +11,8 @@ typedef enum {
     OP_REASSIGN, OP_PUSH,
     OP_POP, OP_CALL, OP_RET,
     OP_FNCTN, OP_HLT, OP_BEG,
-    OP_PUSHI, OP_INPUT
+    OP_PUSHI, OP_INPUT,
+    OP_JMP
 } Op_Code;
 
 typedef struct {
@@ -45,17 +46,24 @@ typedef struct {
 typedef struct {
     size_t count;
     size_t capacity;
+    int *positions;
+} Line_Pos_List;
+
+typedef struct {
+    size_t count;
+    size_t capacity;
     uint8_t *bytes;
     Function_List *function_list;
     Constant_List *constant_list;
+    Line_Pos_List *line_positions;
 } Code;
 
 typedef struct {
     Code *code;
     Token_List *tokens;
+    Function *cur_function;
     int pos;
     int is_in_function;
-    Function *cur_function;
 } Compiler;
 
 Code *compile(Token_List *tokens);

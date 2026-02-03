@@ -19,6 +19,8 @@ void display_token(Token token) {
 }
 
 void free_code(Code *code) {
+    free(code->line_positions->positions);
+    free(code->line_positions);
     free(code->function_list->functions);
     free(code->function_list);
     free(code->constant_list->constants);

@@ -11,5 +11,6 @@ fnctn returns 0 nm main args let v in void calls
     chg a,*+.x144 then
     call test in input endin then
     chg a,b+.x72+ then
-    call print in a endin
+    call print in a endin then
+    jmp_---
 ;
