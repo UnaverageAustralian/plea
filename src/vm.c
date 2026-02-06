@@ -44,6 +44,22 @@ int *allocate_scope(int *vars, int scope) {
     return vars;
 }
 
+void when_queue_add(When_Queue *when_queue, uint8_t cond, int val1, int val2, int loc, uint8_t mode) {
+    if (when_queue->count == when_queue->capacity) {
+        when_queue->capacity *= 2;
+        when_queue->whens = realloc(when_queue->whens, when_queue->capacity * sizeof(When));
+        assert(when_queue->whens != NULL);
+    }
+    when_queue->whens[when_queue->count] = (When){
+        .cond = cond,
+        .val1 = val1,
+        .val2 = val2,
+        .loc = loc,
+        .mode = mode
+    };
+    when_queue->count++;
+}
+
 void push(int **stack_ptr, int val) {
     **stack_ptr = val;
     (*stack_ptr)++;
@@ -63,10 +79,42 @@ uint8_t consume_byte(Code *code, int *cur_byte) {
 
 void check_beg_text(char *beg_text);
 
+void skip_instruction(Code *code, int *cur_byte) {
+    switch (code->bytes[*cur_byte]) {
+    case OP_REASSIGN:
+    case OP_SET_VAR: *cur_byte += 3; break;
+    case OP_PUSH:
+    case OP_PUSHI:
+    case OP_CONST: *cur_byte += 2;   break;
+    case OP_INC:
+    case OP_POP:
+    case OP_HLT:
+    case OP_INPUT:
+    case OP_JMP:
+    case OP_JMPB:
+    case OP_WHEN:
+    case OP_WHEN_NOT:
+    case OP_RET:
+    case OP_DEC: (*cur_byte)++;      break;
+    case OP_FNCTN:
+    case OP_BEG:
+    case OP_CALL:
+        while (code->bytes[*cur_byte] != '\0') (*cur_byte)++;
+        break;
+    default:                         break;
+    }
+}
+
 void run_bytecode(Code *code) {
     int return_stack[MAX_SCOPE];
     int stack[1024];
     int *vars = malloc(256 * sizeof(int));
+
+    When_Queue when_queue = (When_Queue){
+        .count = 0,
+        .capacity = 4,
+        .whens = malloc(4 * sizeof(When))
+    };
 
     int *stack_ptr = stack;
     int *return_stack_ptr = return_stack;
@@ -93,7 +141,6 @@ void run_bytecode(Code *code) {
             consume_byte(code, &cur_byte);
             break;
         case OP_SET_VAR:
-        case OP_CHG_VAR:
             int index = consume_byte(code, &cur_byte) + scope*256;
             int val = consume_byte(code, &cur_byte);
             vars[index] = val;
@@ -171,7 +218,42 @@ void run_bytecode(Code *code) {
         case OP_JMP:
             cur_byte = code->line_positions->positions[pop(&stack_ptr)];
             break;
+        case OP_JMPB:
+            cur_byte = pop(&stack_ptr);
+            break;
+        case OP_WHEN:
+            when_queue_add(&when_queue, 1, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr));
+            consume_byte(code, &cur_byte);
+            skip_instruction(code, &cur_byte);
+            break;
+        case OP_WHEN_NOT:
+            when_queue_add(&when_queue, 0, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr));
+            consume_byte(code, &cur_byte);
+            skip_instruction(code, &cur_byte);
+            break;
+        case OP_POPR:
+            pop(&return_stack_ptr);
+            consume_byte(code, &cur_byte);
+            break;
         default: break;
+        }
+
+        for (int i = 0; i < when_queue.count; i++) {
+            if (when_queue.whens[i].cond == -1) continue;
+
+            int val1 = (when_queue.whens[i].mode & 1) ? vars[when_queue.whens[i].val1] : when_queue.whens[i].val1;
+            int val2 = (when_queue.whens[i].mode & 2) ? vars[when_queue.whens[i].val2] : when_queue.whens[i].val2;
+            if ((val1 == val2) == when_queue.whens[i].cond) {
+                push(&return_stack_ptr, cur_byte+1);
+                cur_byte = when_queue.whens[i].loc;
+                if (i == when_queue.count) {
+                    when_queue.count--;
+                }
+                else {
+                    when_queue.whens[i].cond = -1;
+                }
+                break;
+            }
         }
     }
     free(vars);
@@ -203,12 +285,6 @@ char *disassemble(Code *code) {
             int index = consume_byte(code, &i);
             int val = consume_byte(code, &i);
             sb_appendf(&disasm, "\tSET_VAR %d %d\n", index, val);
-            consume_byte(code, &i);
-            break;
-        case OP_CHG_VAR:
-            index = consume_byte(code, &i);
-            val = consume_byte(code, &i);
-            sb_appendf(&disasm, "\tCHG_VAR %d %d\n", index, val);
             consume_byte(code, &i);
             break;
         case OP_PUSH:
@@ -261,6 +337,22 @@ char *disassemble(Code *code) {
             break;
         case OP_JMP:
             sb_appendf(&disasm, "\tJMP\n");
+            consume_byte(code, &i);
+            break;
+        case OP_JMPB:
+            sb_appendf(&disasm, "\tJMPB\n");
+            consume_byte(code, &i);
+            break;
+        case OP_WHEN:
+            sb_appendf(&disasm, "\tWHEN\n");
+            consume_byte(code, &i);
+            break;
+        case OP_WHEN_NOT:
+            sb_appendf(&disasm, "\tWHEN_NOT\n");
+            consume_byte(code, &i);
+            break;
+        case OP_POPR:
+            sb_appendf(&disasm, "\tPOPR\n");
             consume_byte(code, &i);
             break;
         default: fprintf(stderr, "Unknown instruction: %d\n", code->bytes[i]); exit(1);

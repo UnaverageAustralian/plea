@@ -6,11 +6,11 @@ fnctn returns 5 nm test args let a in int calls
 ;
 
 fnctn returns 0 nm main args let v in void calls
-    let a = -72 then
+    let a = -72 when 3 is not 2 then
     let b = 0 then
     chg a,*+.x144 then
     call test in input endin then
     chg a,b+.x72+ then
     call print in a endin then
-    jmp_---
+    jmp _---
 ;
