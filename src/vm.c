@@ -88,6 +88,9 @@ void skip_instruction(Code *code, int *cur_byte) {
     case OP_CONST: *cur_byte += 2;   break;
     case OP_INC:
     case OP_POP:
+    case OP_POPR:
+    case OP_JMPBS:
+    case OP_JMPS:
     case OP_HLT:
     case OP_INPUT:
     case OP_JMP:
@@ -181,10 +184,12 @@ void run_bytecode(Code *code) {
                 }
                 if (i == code->function_list->count - 1) {
                     if (strcmp(func_name, "print") == 0) {
-                        printf("%c", pop(&stack_ptr));
+                        char c = pop(&stack_ptr);
+                        printf("%c", c);
                         while (code->bytes[cur_byte] != 0) {
                             consume_byte(code, &cur_byte);
                         }
+                        push(&stack_ptr, c);
                         consume_byte(code, &cur_byte);
                     }
                 }
@@ -235,6 +240,14 @@ void run_bytecode(Code *code) {
             pop(&return_stack_ptr);
             consume_byte(code, &cur_byte);
             break;
+        case OP_JMPS:
+            push(&return_stack_ptr, cur_byte+1);
+            cur_byte = code->line_positions->positions[pop(&stack_ptr)];
+            break;
+        case OP_JMPBS:
+            push(&return_stack_ptr, cur_byte+1);
+            cur_byte = pop(&stack_ptr);
+            break;
         default: break;
         }
 
@@ -244,7 +257,6 @@ void run_bytecode(Code *code) {
             int val1 = (when_queue.whens[i].mode & 1) ? vars[when_queue.whens[i].val1] : when_queue.whens[i].val1;
             int val2 = (when_queue.whens[i].mode & 2) ? vars[when_queue.whens[i].val2] : when_queue.whens[i].val2;
             if ((val1 == val2) == when_queue.whens[i].cond) {
-                push(&return_stack_ptr, cur_byte+1);
                 cur_byte = when_queue.whens[i].loc;
                 if (i == when_queue.count) {
                     when_queue.count--;
@@ -268,6 +280,7 @@ char *disassemble(Code *code) {
 
     int i = 0;
     while (i < code->count) {
+        sb_appendf(&disasm, "(%d)\n", i);
         switch (code->bytes[i]) {
         case OP_CONST:
             sb_appendf(&disasm, "\tCONST %d (%d)\n", consume_byte(code, &i), code->constant_list->constants[code->bytes[i]]);
@@ -353,6 +366,14 @@ char *disassemble(Code *code) {
             break;
         case OP_POPR:
             sb_appendf(&disasm, "\tPOPR\n");
+            consume_byte(code, &i);
+            break;
+        case OP_JMPS:
+            sb_appendf(&disasm, "\tJMPS\n");
+            consume_byte(code, &i);
+            break;
+        case OP_JMPBS:
+            sb_appendf(&disasm, "\tJMPBS\n");
             consume_byte(code, &i);
             break;
         default: fprintf(stderr, "Unknown instruction: %d\n", code->bytes[i]); exit(1);

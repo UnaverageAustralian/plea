@@ -1,27 +1,15 @@
 beg "please family great almighty program !!!!!!!!!!";
 
 fnctn returns 0 nm main args let v in void calls
-    let a = 72 then
-    call print in a endin then
-    chg a,101 then
-    call print in a endin then
-    chg a,108 then
-    call print in a endin then
-    call print in a endin then
-    chg a,111 then
-    call print in a endin then
-    chg a,32 then
-    call print in a endin then
-    chg a,87 then
-    call print in a endin then
-    chg a,111 then
-    call print in a endin then
-    chg a,114 then
-    call print in a endin then
-    chg a,108 then
-    call print in a endin then
-    chg a,100 then
-    call print in a endin then
-    chg a,33 then
-    call print in a endin
+    call print in 72 endin then
+    call print in 101 endin then
+    call print in call print in 108 endin then
+    call print in 111 endin then
+    call print in 32 endin then
+    call print in 87 endin then
+    call print in 111 endin then
+    call print in 114 endin then
+    call print in 108 endin then
+    call print in 100 endin then
+    call print in 33 endin
 ;

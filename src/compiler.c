@@ -6,6 +6,8 @@
 
 #include "compiler.h"
 
+#define PLEA_DEBUG
+
 #define da_append(a,i,n)                                                    \
     do {                                                                    \
         if ((a)->count == (a)->capacity) {                                  \
@@ -172,7 +174,7 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
     for (int i = instruc_start; i < instruc_end; i++) {
         da_append(compiler->code, compiler->code->bytes[i], bytes);
     }
-    da_append(compiler->code, OP_JMPB, bytes);
+    da_append(compiler->code, OP_JMPBS, bytes);
 }
 
 int compile_function_declaration(Compiler *compiler) {
@@ -210,6 +212,8 @@ int compile_function_declaration(Compiler *compiler) {
     return ret_val;
 }
 
+void compile_expr(Compiler *compiler);
+
 void compile_chg_expr(Compiler *compiler, int var_id) {
     Token cur_token = consume_token(compiler);
 
@@ -228,7 +232,9 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
         }
     }
     else {
-        error("MALFORMED TOKEN", __LINE__);
+        compile_expr(compiler);
+        add_bytes(compiler->code, 2, OP_POP, var_id);
+        return;
     }
 
     while (peek_token(compiler).kind == PLUS || peek_token(compiler).kind == MINUS || peek_token(compiler).kind == TIMES) {
@@ -265,31 +271,44 @@ void compile_let(Compiler *compiler) {
     }
 
     expect_token(compiler, EQUALS);
-    int val = get_and_expect_token(compiler, INTEGER).int_val;
 
-    if (val < 256 && val >= 0) {
-        add_bytes(compiler->code, 3, OP_SET_VAR, compiler->cur_function->vars_count, val);
+    int var_id = compiler->cur_function->vars_count;
+    if (peek_token(compiler).kind == INTEGER || peek_token(compiler).kind == REAL) {
+        int val = consume_token(compiler).int_val;
+
+        if (val < 256 && val >= 0) {
+            add_bytes(compiler->code, 3, OP_SET_VAR, compiler->cur_function->vars_count, val);
+        }
+        else {
+            add_bytes(compiler->code, 4, OP_CONST, compiler->code->constant_list->count, OP_POP, compiler->cur_function->vars_count);
+            da_append(compiler->code->constant_list, val, constants);
+        }
+        compiler->cur_function->vars_count++;
     }
     else {
-        add_bytes(compiler->code, 4, OP_CONST, compiler->code->constant_list->count, OP_POP, compiler->cur_function->vars_count);
-        da_append(compiler->code->constant_list, val, constants);
+        compiler->cur_function->vars_count++;
+        consume_token(compiler);
+        compile_expr(compiler);
+        add_bytes(compiler->code, 2, OP_POP, var_id);
     }
-    compiler->cur_function->vars_count++;
+
     if (peek_token(compiler).kind == WHEN) {
         da_append(compiler->code->line_positions, compiler->code->count+1, positions);
         compile_when_condition(compiler, cur_byte_pos);
     }
 }
 
-void compile_chg(Compiler *compiler) {
+int compile_chg(Compiler *compiler) {
     int cur_byte_pos;
     if (check_for_when(compiler)) {
         add_bytes(compiler->code, 4, OP_PUSHI, compiler->code->line_positions->count-1, OP_INC, OP_JMP);
         cur_byte_pos = (int)compiler->code->count;
     }
 
+    int var_id;
     for (int i = 0; i < compiler->cur_function->vars_count; i++) {
         if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
+            var_id = i;
             consume_token(compiler);
             expect_token(compiler, COMMA);
             if (peek_token(compiler).kind == INTEGER || peek_token(compiler).kind == REAL) {
@@ -314,6 +333,7 @@ void compile_chg(Compiler *compiler) {
         da_append(compiler->code->line_positions, compiler->code->count+1, positions);
         compile_when_condition(compiler, cur_byte_pos);
     }
+    return var_id;
 }
 
 void compile_function_call(Compiler *compiler) {
@@ -329,24 +349,31 @@ void compile_function_call(Compiler *compiler) {
     int arguments = 0;
     for (; ;) {
         arguments++;
-        if (strcmp(peek_token(compiler).ident_name, "input") == 0) {
-            da_append(compiler->code, OP_INPUT, bytes);
-        }
-        else {
-            for (int i = 0; i < compiler->cur_function->vars_count; i++) {
-                if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
-                    add_bytes(compiler->code, 2, OP_PUSH, i);
-                    break;
-                }
-                if (i == compiler->cur_function->vars_count - 1) {
-                    error("Variable not found", __LINE__);
+        if (peek_token(compiler).kind == IDENT) {
+            if (strcmp(peek_token(compiler).ident_name, "input") == 0) {
+                da_append(compiler->code, OP_INPUT, bytes);
+            }
+            else {
+                for (int i = 0; i < compiler->cur_function->vars_count; i++) {
+                    if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
+                        add_bytes(compiler->code, 2, OP_PUSH, i);
+                        break;
+                    }
+                    if (i == compiler->cur_function->vars_count - 1) {
+                        error("Variable not found", __LINE__);
+                    }
                 }
             }
+            consume_token(compiler);
         }
-        consume_token(compiler);
+        else {
+            consume_token(compiler);
+            compile_expr(compiler);
+        }
         if (peek_token(compiler).kind != COMMA) {
             da_append(compiler->code, OP_CALL, bytes);
             add_string(compiler->code, function_name);
+            if (compiler->tokens->toks[compiler->pos].kind == ENDIN) break;
             expect_token(compiler, ENDIN);
             break;
         }
@@ -369,6 +396,37 @@ void compile_function_call(Compiler *compiler) {
     if (peek_token(compiler).kind == WHEN) {
         da_append(compiler->code->line_positions, compiler->code->count+1, positions);
         compile_when_condition(compiler, cur_byte_pos);
+    }
+}
+
+void compile_expr(Compiler *compiler) {
+    switch (compiler->tokens->toks[compiler->pos].kind) {
+    case REAL:
+    case INTEGER:
+        add_bytes(compiler->code, 2, OP_PUSHI, compiler->tokens->toks[compiler->pos].int_val);
+        break;
+    case IDENT:
+        for (int i = 0; i < compiler->cur_function->vars_count; i++) {
+            if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
+                add_bytes(compiler->code, 2, OP_PUSH, i);
+                break;
+            }
+            if (i == compiler->cur_function->vars_count - 1) {
+                error("Variable not found", __LINE__);
+            }
+        }
+        break;
+    case LET:
+        compile_let(compiler);
+        add_bytes(compiler->code, 2, OP_PUSH, compiler->cur_function->vars_count-1);
+        break;
+    case CHG:
+        add_bytes(compiler->code, 2, OP_PUSH, compile_chg(compiler));
+        break;
+    case CALL:
+        compile_function_call(compiler);
+        break;
+    default: error("Invalid expression", __LINE__);
     }
 }
 
@@ -404,7 +462,7 @@ void compile_jump(Compiler *compiler) {
     }
 
     if (peek_token(compiler).kind == WHEN) {
-        add_bytes(compiler->code, 3, OP_POPR, OP_POPR, OP_JMP);
+        add_bytes(compiler->code, 2, OP_POPR, OP_JMP);
         da_append(compiler->code->line_positions, compiler->code->count+1, positions);
         compile_when_condition(compiler, cur_byte_pos);
     }

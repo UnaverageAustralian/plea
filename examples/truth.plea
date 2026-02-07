@@ -1,0 +1,8 @@
+beg "please family great almighty program !!!!!!!!!!";
+
+fnctn returns 0 nm main args let v in void calls
+    let x = call print in input endin then
+    jmp _++++ when x is 48 then
+    let y = call print in x endin then
+    jmp _-
+;

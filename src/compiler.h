@@ -12,7 +12,8 @@ typedef enum {
     OP_FNCTN, OP_HLT, OP_BEG,
     OP_PUSHI, OP_INPUT,
     OP_JMP, OP_JMPB, OP_WHEN,
-    OP_WHEN_NOT, OP_POPR
+    OP_WHEN_NOT, OP_POPR, OP_JMPBS,
+    OP_JMPS
 } Op_Code;
 
 typedef struct {
