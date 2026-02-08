@@ -1,6 +1,8 @@
 beg "please family great almighty program !!!!!!!!!!";
 This is a comment
 
+fnctn returns chg a,*+.xb nm add args let a in int let b in int calls;
+
 fnctn returns 5 nm test args let a in int calls
     call print in a endin
 ;
@@ -8,7 +10,7 @@ fnctn returns 5 nm test args let a in int calls
 fnctn returns 0 nm main args let v in void calls
     let a = -72 when 3 is not 2 then
     let d = let b = 0 then
-    chg a,*+.x144 then
+    chg a,call add in a,144 endin then
     call test in input endin then
     chg a,d+.x72+ then
     call print in a endin then

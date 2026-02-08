@@ -248,6 +248,14 @@ void run_bytecode(Code *code) {
             push(&return_stack_ptr, cur_byte+1);
             cur_byte = pop(&stack_ptr);
             break;
+        case OP_ADD:
+            push(&stack_ptr, pop(&stack_ptr)+pop(&stack_ptr));
+            consume_byte(code, &cur_byte);
+            break;
+        case OP_SUB:
+            push(&stack_ptr, pop(&stack_ptr)-pop(&stack_ptr));
+            consume_byte(code, &cur_byte);
+            break;
         default: break;
         }
 
@@ -280,7 +288,6 @@ char *disassemble(Code *code) {
 
     int i = 0;
     while (i < code->count) {
-        sb_appendf(&disasm, "(%d)\n", i);
         switch (code->bytes[i]) {
         case OP_CONST:
             sb_appendf(&disasm, "\tCONST %d (%d)\n", consume_byte(code, &i), code->constant_list->constants[code->bytes[i]]);
@@ -374,6 +381,14 @@ char *disassemble(Code *code) {
             break;
         case OP_JMPBS:
             sb_appendf(&disasm, "\tJMPBS\n");
+            consume_byte(code, &i);
+            break;
+        case OP_ADD:
+            sb_appendf(&disasm, "\tADD\n");
+            consume_byte(code, &i);
+            break;
+        case OP_SUB:
+            sb_appendf(&disasm, "\tSUB\n");
             consume_byte(code, &i);
             break;
         default: fprintf(stderr, "Unknown instruction: %d\n", code->bytes[i]); exit(1);

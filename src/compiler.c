@@ -6,6 +6,8 @@
 
 #include "compiler.h"
 
+#define PLEA_DEBUG
+
 #define da_append(a,i,n)                                                    \
     do {                                                                    \
         if ((a)->count == (a)->capacity) {                                  \
@@ -178,7 +180,10 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
 int compile_function_declaration(Compiler *compiler) {
     da_append(compiler->code, OP_FNCTN, bytes);
     expect_token(compiler, RETURNS);
-    int ret_val = get_and_expect_token(compiler, INTEGER).int_val;
+    consume_token(compiler);
+    int ret_val_pos = compiler->pos;
+
+    while (peek_token(compiler).kind != NM) consume_token(compiler);
 
     expect_token(compiler, NM);
     char *name = compiler->tokens->toks[compiler->pos+1].ident_name;
@@ -207,7 +212,7 @@ int compile_function_declaration(Compiler *compiler) {
         }
     }
     consume_token(compiler);
-    return ret_val;
+    return ret_val_pos;
 }
 
 void compile_expr(Compiler *compiler);
@@ -241,14 +246,31 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
         case MINUS: da_append(compiler->code, OP_DEC, bytes); break;
         case TIMES:
             consume_token(compiler);
-            if (peek_token(compiler).kind != INTEGER) error("MALFORMED TOKEN", __LINE__);
-            int num = peek_token(compiler).int_val;
 
             uint8_t cur_instruction = compiler->code->bytes[compiler->code->count-1];
             if (cur_instruction != OP_INC && cur_instruction != OP_DEC) error("MALFORMED TOKEN", __LINE__);
 
-            for (int i = 1; i < num; i++) {
-                da_append(compiler->code, cur_instruction, bytes);
+            if (peek_token(compiler).kind == INTEGER || peek_token(compiler).kind == REAL) {
+                int val = peek_token(compiler).int_val;
+                if (val > 256 || val < 0) {
+                    add_bytes(compiler->code, 3, OP_CONST, compiler->code->constant_list->count, cur_instruction == OP_INC ? OP_ADD : OP_SUB);
+                    da_append(compiler->code->constant_list, val-1, constants);
+                }
+                else {
+                    add_bytes(compiler->code, 3, OP_PUSHI, val-1, cur_instruction == OP_INC ? OP_ADD : OP_SUB);
+                }
+            }
+            else if (peek_token(compiler).kind == IDENT) {
+                for (int i = 0; i < compiler->cur_function->vars_count; i++) {
+                    if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
+                        add_bytes(compiler->code, 4, OP_PUSH, i, cur_instruction == OP_INC ? OP_DEC : OP_INC, cur_instruction == OP_INC ? OP_ADD : OP_SUB);
+                        break;
+                    }
+                    if (i == compiler->cur_function->vars_count - 1) error("Variable not found", __LINE__);
+                }
+            }
+            else {
+                error("MALFORMED TOKEN", __LINE__);
             }
             break;
         default: error("MALFORMED TOKEN", __LINE__);
@@ -516,18 +538,24 @@ Code *compile(Token_List *tokens) {
 
     da_append(compiler.code->line_positions, compiler.code->count, positions);
 
-    int cur_ret_val = 0;
+    int ret_val_pos = 0;
     Token token = compiler.tokens->toks[compiler.pos];
     while (token.kind != T_EOF) {
         if (compiler.is_in_function) {
             switch (token.kind) {
             case SEMICOLON:
-                add_bytes(compiler.code, 3, OP_PUSHI, cur_ret_val, OP_RET);
+                int cur_position = compiler.pos;
+
+                compiler.pos = ret_val_pos;
+                compile_expr(&compiler);
+                da_append(compiler.code, OP_RET, bytes);
+                compiler.pos = cur_position;
+
                 compiler.is_in_function = 0;
                 free(compiler.cur_function->vars);
                 break;
             case FNCTN:
-                cur_ret_val = compile_function_declaration(&compiler);
+                ret_val_pos = compile_function_declaration(&compiler);
                 break;
             case LET:
                 compile_let(&compiler);

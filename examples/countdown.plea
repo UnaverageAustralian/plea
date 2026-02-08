@@ -3,7 +3,7 @@ beg "please family great almighty program !!!!!!!!!!";
 fnctn returns 0 nm main args let v in void calls
     let a = 57 then
     jmp _+++++ when a is 47 then
-    call print in a endin then
+    let y = call print in a endin then
     chg a,*- then
     jmp _--
 ;

@@ -13,7 +13,7 @@ typedef enum {
     OP_PUSHI, OP_INPUT,
     OP_JMP, OP_JMPB, OP_WHEN,
     OP_WHEN_NOT, OP_POPR, OP_JMPBS,
-    OP_JMPS
+    OP_JMPS, OP_ADD, OP_SUB
 } Op_Code;
 
 typedef struct {
