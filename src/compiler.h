@@ -13,7 +13,8 @@ typedef enum {
     OP_PUSHI, OP_INPUT,
     OP_JMP, OP_JMPB, OP_WHEN,
     OP_WHEN_NOT, OP_POPR, OP_JMPBS,
-    OP_JMPS, OP_ADD, OP_SUB
+    OP_JMPS, OP_ADD, OP_SUB,
+    OP_PROMISE, OP_PROMISE_NOT,
 } Op_Code;
 
 typedef struct {
@@ -29,26 +30,6 @@ typedef struct {
     size_t capacity;
     Function *functions;
 } Function_List;
-
-typedef struct {
-    int8_t cond;
-    union {
-        uint8_t var1;
-        int val1;
-    };
-    union {
-        uint8_t var2;
-        int val2;
-    };
-    int loc;
-    uint8_t mode;
-} When;
-
-typedef struct {
-    size_t count;
-    size_t capacity;
-    When *whens;
-} When_Queue;
 
 typedef struct {
     size_t count;

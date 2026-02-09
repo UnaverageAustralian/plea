@@ -44,7 +44,7 @@ int *allocate_scope(int *vars, int scope) {
     return vars;
 }
 
-void when_queue_add(When_Queue *when_queue, uint8_t cond, int val1, int val2, int loc, uint8_t mode) {
+void when_queue_add(When_Queue *when_queue, uint8_t cond, int val1, int val2, int loc, uint8_t mode, uint8_t is_promise) {
     if (when_queue->count == when_queue->capacity) {
         when_queue->capacity *= 2;
         when_queue->whens = realloc(when_queue->whens, when_queue->capacity * sizeof(When));
@@ -55,7 +55,8 @@ void when_queue_add(When_Queue *when_queue, uint8_t cond, int val1, int val2, in
         .val1 = val1,
         .val2 = val2,
         .loc = loc,
-        .mode = mode
+        .mode = mode,
+        .is_promise = is_promise
     };
     when_queue->count++;
 }
@@ -129,6 +130,7 @@ void run_bytecode(Code *code) {
         exit(1);
     }
 
+    int cur_function = 0;
     while (code->bytes[cur_byte] != OP_HLT) {
         switch (code->bytes[cur_byte]) {
         case OP_CONST:
@@ -173,12 +175,24 @@ void run_bytecode(Code *code) {
 
                     push(&return_stack_ptr, cur_byte);
                     cur_byte = code->function_list->functions[i].location;
+                    cur_function = i;
 
                     scope++;
                     vars = allocate_scope(vars, scope);
                     if (scope >= MAX_SCOPE) {
                         fprintf(stderr, "The scope is too deep\n");
                         exit(1);
+                    }
+
+                    if (strcmp(func_name, "main") == 0) {
+                        if (code->bytes[cur_byte] != OP_CALL) exit(1);
+                        consume_byte(code, &cur_byte);
+                        if (strcmp((char *)&code->bytes[cur_byte], "main") != 0) exit(1);
+
+                        while (code->bytes[cur_byte] != 0) {
+                            consume_byte(code, &cur_byte);
+                        }
+                        consume_byte(code, &cur_byte);
                     }
                     break;
                 }
@@ -196,6 +210,18 @@ void run_bytecode(Code *code) {
             }
             break;
         case OP_RET:
+            for (int i = 0; i < when_queue.count; i++) {
+                if (when_queue.whens[i].cond == -1) continue;
+                if (when_queue.whens[i].loc < code->function_list->functions[cur_function].location ||
+                    (code->function_list->count-cur_function <= 0 && when_queue.whens[i].loc >= code->function_list->functions[cur_function+1].location))
+                    continue;
+
+                if (when_queue.whens[i].is_promise) {
+                    fprintf(stderr, "You promised :(\n");
+                    exit(1);
+                }
+            }
+
             pop(&stack_ptr);
             cur_byte = pop(&return_stack_ptr);
             scope--;
@@ -227,12 +253,22 @@ void run_bytecode(Code *code) {
             cur_byte = pop(&stack_ptr);
             break;
         case OP_WHEN:
-            when_queue_add(&when_queue, 1, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr));
+            when_queue_add(&when_queue, 1, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr), 0);
             consume_byte(code, &cur_byte);
             skip_instruction(code, &cur_byte);
             break;
         case OP_WHEN_NOT:
-            when_queue_add(&when_queue, 0, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr));
+            when_queue_add(&when_queue, 0, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr), 0);
+            consume_byte(code, &cur_byte);
+            skip_instruction(code, &cur_byte);
+            break;
+        case OP_PROMISE:
+            when_queue_add(&when_queue, 1, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr), 1);
+            consume_byte(code, &cur_byte);
+            skip_instruction(code, &cur_byte);
+            break;
+        case OP_PROMISE_NOT:
+            when_queue_add(&when_queue, 0, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr), 1);
             consume_byte(code, &cur_byte);
             skip_instruction(code, &cur_byte);
             break;
@@ -261,12 +297,15 @@ void run_bytecode(Code *code) {
 
         for (int i = 0; i < when_queue.count; i++) {
             if (when_queue.whens[i].cond == -1) continue;
+            if (when_queue.whens[i].loc < code->function_list->functions[cur_function].location ||
+                (code->function_list->count-cur_function <= 0 && when_queue.whens[i].loc >= code->function_list->functions[cur_function+1].location))
+                continue;
 
             int val1 = (when_queue.whens[i].mode & 1) ? vars[when_queue.whens[i].val1] : when_queue.whens[i].val1;
             int val2 = (when_queue.whens[i].mode & 2) ? vars[when_queue.whens[i].val2] : when_queue.whens[i].val2;
             if ((val1 == val2) == when_queue.whens[i].cond) {
                 cur_byte = when_queue.whens[i].loc;
-                if (i == when_queue.count) {
+                if (i == when_queue.count-1) {
                     when_queue.count--;
                 }
                 else {
@@ -369,6 +408,14 @@ char *disassemble(Code *code) {
             break;
         case OP_WHEN_NOT:
             sb_appendf(&disasm, "\tWHEN_NOT\n");
+            consume_byte(code, &i);
+            break;
+        case OP_PROMISE:
+            sb_appendf(&disasm, "\tPROMISE\n");
+            consume_byte(code, &i);
+            break;
+        case OP_PROMISE_NOT:
+            sb_appendf(&disasm, "\tPROMISE_NOT\n");
             consume_byte(code, &i);
             break;
         case OP_POPR:

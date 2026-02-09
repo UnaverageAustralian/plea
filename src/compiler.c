@@ -52,7 +52,7 @@ void add_string(Code *code, char *str) {
 
 void error(char *message, int line) {
 #ifdef PLEA_DEBUG
-    fprintf(stderr, "%d: %s", line, message);
+    fprintf(stderr, "%d: %s\n", line, message);
 #else
     fprintf(stderr, "%s\n", message);
 #endif
@@ -124,6 +124,7 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
     int mode = 0;
     switch (lhs.kind) {
     case IDENT:
+        if (compiler->cur_function->vars_count == 0) error("Variable not found", __LINE__);
         for (int i = 0; i < compiler->cur_function->vars_count; i++) {
             mode |= 1;
             if (strcmp(lhs.ident_name, compiler->cur_function->vars[i]) == 0) {
@@ -142,6 +143,7 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
 
     switch (rhs.kind) {
     case IDENT:
+        if (compiler->cur_function->vars_count == 0) error("Variable not found", __LINE__);
         for (int i = 0; i < compiler->cur_function->vars_count; i++) {
             mode |= 2;
             if (strcmp(rhs.ident_name, compiler->cur_function->vars[i]) == 0) {
@@ -158,7 +160,15 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
     default: error("MALFORMED TOKEN", __LINE__);
     }
     add_bytes(compiler->code, 2, OP_PUSHI, mode);
-    da_append(compiler->code, cond ? OP_WHEN : OP_WHEN_NOT, bytes);
+
+    if (peek_token(compiler).kind == CATCH && compiler->tokens->toks[compiler->pos+2].kind == ERROR) {
+        da_append(compiler->code, cond ? OP_WHEN : OP_WHEN_NOT, bytes);
+        compiler->pos += 2;
+    }
+    else {
+        da_append(compiler->code, cond ? OP_PROMISE : OP_PROMISE_NOT, bytes);
+    }
+
     int instruc_end = (int)compiler->code->count;
 
     if (cur_byte_pos > 256) {
@@ -222,6 +232,7 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
         add_bytes(compiler->code, 2, OP_PUSH, var_id);
     }
     else if (cur_token.kind == IDENT) {
+        if (compiler->cur_function->vars_count == 0) error("Variable not found", __LINE__);
         for (int i = 0; i < compiler->cur_function->vars_count; i++) {
             if (strcmp(cur_token.ident_name, compiler->cur_function->vars[i]) == 0) {
                 add_bytes(compiler->code, 2, OP_PUSH, i);
@@ -259,6 +270,7 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
                 }
             }
             else if (peek_token(compiler).kind == IDENT) {
+                if (compiler->cur_function->vars_count == 0) error("Variable not found", __LINE__);
                 for (int i = 0; i < compiler->cur_function->vars_count; i++) {
                     if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
                         add_bytes(compiler->code, 4, OP_PUSH, i, cur_instruction == OP_INC ? OP_DEC : OP_INC, cur_instruction == OP_INC ? OP_ADD : OP_SUB);
@@ -324,6 +336,7 @@ int compile_chg(Compiler *compiler) {
     }
 
     int var_id;
+    if (compiler->cur_function->vars_count == 0) error("Variable not found", __LINE__);
     for (int i = 0; i < compiler->cur_function->vars_count; i++) {
         if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
             var_id = i;
@@ -372,6 +385,7 @@ void compile_function_call(Compiler *compiler) {
                 da_append(compiler->code, OP_INPUT, bytes);
             }
             else {
+                if (compiler->cur_function->vars_count == 0) error("Variable not found", __LINE__);
                 for (int i = 0; i < compiler->cur_function->vars_count; i++) {
                     if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
                         add_bytes(compiler->code, 2, OP_PUSH, i);
@@ -384,9 +398,12 @@ void compile_function_call(Compiler *compiler) {
             }
             consume_token(compiler);
         }
-        else {
+        else if (peek_token(compiler).kind != VOID) {
             consume_token(compiler);
             compile_expr(compiler);
+        }
+        else {
+            consume_token(compiler);
         }
         if (peek_token(compiler).kind != COMMA) {
             da_append(compiler->code, OP_CALL, bytes);
@@ -424,6 +441,7 @@ void compile_expr(Compiler *compiler) {
         add_bytes(compiler->code, 2, OP_PUSHI, compiler->tokens->toks[compiler->pos].int_val);
         break;
     case IDENT:
+        if (compiler->cur_function->vars_count == 0) error("Variable not found", __LINE__);
         for (int i = 0; i < compiler->cur_function->vars_count; i++) {
             if (strcmp(peek_token(compiler).ident_name, compiler->cur_function->vars[i]) == 0) {
                 add_bytes(compiler->code, 2, OP_PUSH, i);

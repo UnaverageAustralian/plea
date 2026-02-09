@@ -1,6 +1,7 @@
 beg "please family great almighty program !!!!!!!!!!";
 
 fnctn returns 0 nm main args let v in void calls
+    call main in void endin then
     call print in 72 endin then
     call print in 101 endin then
     call print in call print in 108 endin then
