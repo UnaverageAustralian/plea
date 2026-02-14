@@ -39,7 +39,7 @@ void sb_appendf(String_Builder *sb, char *format, ...) {
 }
 
 int *allocate_scope(int *vars, int scope) {
-    vars = realloc(vars, (scope+1)*256*sizeof(int));
+    vars = realloc(vars, (scope+1)*256*sizeof(Value));
     assert(vars != NULL);
     return vars;
 }
@@ -61,15 +61,28 @@ void when_queue_add(When_Queue *when_queue, uint8_t cond, int val1, int val2, in
     when_queue->count++;
 }
 
-void push(int **stack_ptr, int val) {
+void push(Value **stack_ptr, Value val, int type) {
+    (*stack_ptr)->type = type;
     **stack_ptr = val;
     (*stack_ptr)++;
 }
 
-int pop(int **stack_ptr) {
+void push_p(Value **stack_ptr, uintptr_t val) {
+    (*stack_ptr)->type = 2;
+    (*stack_ptr)->as.pointer = val;
+    (*stack_ptr)++;
+}
+
+void push_i(Value **stack_ptr, int val) {
+    (*stack_ptr)->type = 0;
+    (*stack_ptr)->as.integer = val;
+    (*stack_ptr)++;
+}
+
+Value pop(Value **stack_ptr) {
     (*stack_ptr)--;
-    int val = **stack_ptr;
-    **stack_ptr = 0;
+    Value val = **stack_ptr;
+    (*stack_ptr)->as.integer = 0;
     return val;
 }
 
@@ -110,9 +123,9 @@ void skip_instruction(Code *code, int *cur_byte) {
 }
 
 void run_bytecode(Code *code) {
-    int return_stack[MAX_SCOPE];
-    int stack[1024];
-    int *vars = malloc(256 * sizeof(int));
+    Value return_stack[MAX_SCOPE];
+    Value stack[1024];
+    Value *vars = malloc(256 * sizeof(Value));
 
     When_Queue when_queue = (When_Queue){
         .count = 0,
@@ -120,9 +133,10 @@ void run_bytecode(Code *code) {
         .whens = malloc(4 * sizeof(When))
     };
 
-    int *stack_ptr = stack;
-    int *return_stack_ptr = return_stack;
+    Value *stack_ptr = stack;
+    Value *return_stack_ptr = return_stack;
 
+    int vars_count = 256;
     int scope = -1;
     int cur_byte = 0;
     if (code->bytes[cur_byte] != OP_BEG) {
@@ -134,29 +148,33 @@ void run_bytecode(Code *code) {
     while (code->bytes[cur_byte] != OP_HLT) {
         switch (code->bytes[cur_byte]) {
         case OP_CONST:
-            push(&stack_ptr, code->constant_list->constants[consume_byte(code, &cur_byte)]);
+            push(&stack_ptr, code->constant_list->constants[consume_byte(code, &cur_byte)], 0);
             consume_byte(code, &cur_byte);
             break;
         case OP_INC:
-            push(&stack_ptr, pop(&stack_ptr)+1);
+            push_i(&stack_ptr, pop(&stack_ptr).as.integer+1);
             consume_byte(code, &cur_byte);
             break;
         case OP_DEC:
-            push(&stack_ptr, pop(&stack_ptr)-1);
+            push_i(&stack_ptr, pop(&stack_ptr).as.integer-1);
             consume_byte(code, &cur_byte);
             break;
-        case OP_SET_VAR:
+        case OP_SET_VAR: {
             int index = consume_byte(code, &cur_byte) + scope*256;
             int val = consume_byte(code, &cur_byte);
-            vars[index] = val;
+            vars[index].as.integer = val;
+            vars[index].type = 0;
             consume_byte(code, &cur_byte);
             break;
-        case OP_PUSH:
-            push(&stack_ptr, vars[consume_byte(code, &cur_byte) + scope*256]);
+        }
+        case OP_PUSH: {
+            int index = consume_byte(code, &cur_byte) + scope*256;
+            push(&stack_ptr, vars[index], vars[index].type);
             consume_byte(code, &cur_byte);
             break;
+        }
         case OP_PUSHI:
-            push(&stack_ptr, consume_byte(code, &cur_byte));
+            push_i(&stack_ptr, consume_byte(code, &cur_byte));
             consume_byte(code, &cur_byte);
             break;
         case OP_POP:
@@ -173,12 +191,13 @@ void run_bytecode(Code *code) {
                     }
                     consume_byte(code, &cur_byte);
 
-                    push(&return_stack_ptr, cur_byte);
+                    push_i(&return_stack_ptr, cur_byte);
                     cur_byte = code->function_list->functions[i].location;
                     cur_function = i;
 
                     scope++;
                     vars = allocate_scope(vars, scope);
+                    vars_count = (scope+1)*256;
                     if (scope >= MAX_SCOPE) {
                         fprintf(stderr, "The scope is too deep\n");
                         exit(1);
@@ -198,12 +217,23 @@ void run_bytecode(Code *code) {
                 }
                 if (i == code->function_list->count - 1) {
                     if (strcmp(func_name, "print") == 0) {
-                        char c = pop(&stack_ptr);
-                        printf("%c", c);
+                        Value v = pop(&stack_ptr);
+                        if (v.type != 2) {
+                            char c = (char)v.as.integer;
+                            printf("%c", c);
+                            push_i(&stack_ptr, c);
+                        }
+                        else {
+                            Array *char_array = (Array *)v.as.pointer;
+                            for (int j = 0; j < char_array->len; j++) {
+                                printf("%c", char_array->items[j].integer);
+                            }
+                            push_p(&stack_ptr, (uintptr_t)char_array);
+                        }
+
                         while (code->bytes[cur_byte] != 0) {
                             consume_byte(code, &cur_byte);
                         }
-                        push(&stack_ptr, c);
                         consume_byte(code, &cur_byte);
                     }
                 }
@@ -223,7 +253,7 @@ void run_bytecode(Code *code) {
             }
 
             pop(&stack_ptr);
-            cur_byte = pop(&return_stack_ptr);
+            cur_byte = pop(&return_stack_ptr).as.integer;
             scope--;
             break;
         case OP_BEG:
@@ -239,36 +269,37 @@ void run_bytecode(Code *code) {
             }
             consume_byte(code, &cur_byte);
             break;
-        case OP_INPUT:
+        case OP_INPUT: {
             char c;
             printf("\n");
             scanf(" %c", &c);
-            push(&stack_ptr, c);
+            push_i(&stack_ptr, c);
             consume_byte(code, &cur_byte);
             break;
+        }
         case OP_JMP:
-            cur_byte = code->line_positions->positions[pop(&stack_ptr)];
+            cur_byte = code->line_positions->positions[pop(&stack_ptr).as.integer];
             break;
         case OP_JMPB:
-            cur_byte = pop(&stack_ptr);
+            cur_byte = pop(&stack_ptr).as.integer;
             break;
         case OP_WHEN:
-            when_queue_add(&when_queue, 1, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr), 0);
+            when_queue_add(&when_queue, 1, pop(&stack_ptr).as.integer, pop(&stack_ptr).as.integer, cur_byte+1, pop(&stack_ptr).as.integer, 0);
             consume_byte(code, &cur_byte);
             skip_instruction(code, &cur_byte);
             break;
         case OP_WHEN_NOT:
-            when_queue_add(&when_queue, 0, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr), 0);
+            when_queue_add(&when_queue, 0, pop(&stack_ptr).as.integer, pop(&stack_ptr).as.integer, cur_byte+1, pop(&stack_ptr).as.integer, 0);
             consume_byte(code, &cur_byte);
             skip_instruction(code, &cur_byte);
             break;
         case OP_PROMISE:
-            when_queue_add(&when_queue, 1, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr), 1);
+            when_queue_add(&when_queue, 1, pop(&stack_ptr).as.integer, pop(&stack_ptr).as.integer, cur_byte+1, pop(&stack_ptr).as.integer, 1);
             consume_byte(code, &cur_byte);
             skip_instruction(code, &cur_byte);
             break;
         case OP_PROMISE_NOT:
-            when_queue_add(&when_queue, 0, pop(&stack_ptr), pop(&stack_ptr), cur_byte+1, pop(&stack_ptr), 1);
+            when_queue_add(&when_queue, 0, pop(&stack_ptr).as.integer, pop(&stack_ptr).as.integer, cur_byte+1, pop(&stack_ptr).as.integer, 1);
             consume_byte(code, &cur_byte);
             skip_instruction(code, &cur_byte);
             break;
@@ -277,21 +308,49 @@ void run_bytecode(Code *code) {
             consume_byte(code, &cur_byte);
             break;
         case OP_JMPS:
-            push(&return_stack_ptr, cur_byte+1);
-            cur_byte = code->line_positions->positions[pop(&stack_ptr)];
+            push_i(&return_stack_ptr, cur_byte+1);
+            cur_byte = code->line_positions->positions[pop(&stack_ptr).as.integer];
             break;
         case OP_JMPBS:
-            push(&return_stack_ptr, cur_byte+1);
-            cur_byte = pop(&stack_ptr);
+            push_i(&return_stack_ptr, cur_byte+1);
+            cur_byte = pop(&stack_ptr).as.integer;
             break;
         case OP_ADD:
-            push(&stack_ptr, pop(&stack_ptr)+pop(&stack_ptr));
+            push_i(&stack_ptr, pop(&stack_ptr).as.integer+pop(&stack_ptr).as.integer);
             consume_byte(code, &cur_byte);
             break;
         case OP_SUB:
-            push(&stack_ptr, pop(&stack_ptr)-pop(&stack_ptr));
+            push_i(&stack_ptr, pop(&stack_ptr).as.integer-pop(&stack_ptr).as.integer);
             consume_byte(code, &cur_byte);
             break;
+        case OP_SET_ARRAY: {
+            int index = consume_byte(code, &cur_byte);
+            vars[index].type = 2;
+            vars[index].as.pointer = (uintptr_t)malloc(sizeof(Array));
+            ((Array *)vars[index].as.pointer)->len = 16;
+            ((Array *)vars[index].as.pointer)->items = malloc(16 * sizeof(Value32));
+            consume_byte(code, &cur_byte);
+            break;
+        }
+        case OP_SET_INDEX: {
+            int val = pop(&stack_ptr).as.integer;
+            int index = pop(&stack_ptr).as.integer;
+            ((Array *)vars[pop(&stack_ptr).as.integer].as.pointer)->items[index].integer = val;
+            consume_byte(code, &cur_byte);
+            break;
+        }
+        case OP_SET_LEN: {
+            int array = pop(&stack_ptr).as.integer;
+            ((Array *)vars[array].as.pointer)->len = pop(&stack_ptr).as.integer;
+            consume_byte(code, &cur_byte);
+            break;
+        }
+        case OP_PUSH_INDEX: {
+            int index = pop(&stack_ptr).as.integer;
+            push_i(&stack_ptr, ((Array *)vars[pop(&stack_ptr).as.integer].as.pointer)->items[index].integer);
+            consume_byte(code, &cur_byte);
+            break;
+        }
         default: break;
         }
 
@@ -301,8 +360,8 @@ void run_bytecode(Code *code) {
                 (code->function_list->count-cur_function <= 0 && when_queue.whens[i].loc >= code->function_list->functions[cur_function+1].location))
                 continue;
 
-            int val1 = (when_queue.whens[i].mode & 1) ? vars[when_queue.whens[i].val1] : when_queue.whens[i].val1;
-            int val2 = (when_queue.whens[i].mode & 2) ? vars[when_queue.whens[i].val2] : when_queue.whens[i].val2;
+            int val1 = (when_queue.whens[i].mode & 1) ? vars[when_queue.whens[i].val1].as.integer : when_queue.whens[i].val1;
+            int val2 = (when_queue.whens[i].mode & 2) ? vars[when_queue.whens[i].val2].as.integer : when_queue.whens[i].val2;
             if ((val1 == val2) == when_queue.whens[i].cond) {
                 cur_byte = when_queue.whens[i].loc;
                 if (i == when_queue.count-1) {
@@ -315,6 +374,14 @@ void run_bytecode(Code *code) {
             }
         }
     }
+
+    for (int i = 0; i < vars_count; i++) {
+        if (vars[i].type == 2) {
+            free(((Array *)vars[i].as.pointer)->items);
+            free((Array *)vars[i].as.pointer);
+        }
+    }
+    free(when_queue.whens);
     free(vars);
 }
 
@@ -340,14 +407,33 @@ char *disassemble(Code *code) {
             sb_append(&disasm, "\tDEC\n");
             consume_byte(code, &i);
             break;
-        case OP_SET_VAR:
+        case OP_SET_VAR: {
             int index = consume_byte(code, &i);
             int val = consume_byte(code, &i);
             sb_appendf(&disasm, "\tSET_VAR %d %d\n", index, val);
             consume_byte(code, &i);
             break;
+        }
+        case OP_SET_ARRAY: {
+            int index = consume_byte(code, &i);
+            sb_appendf(&disasm, "\tSET_ARRAY %d\n", index);
+            consume_byte(code, &i);
+            break;
+        }
+        case OP_SET_INDEX:
+            sb_appendf(&disasm, "\tSET_INDEX\n");
+            consume_byte(code, &i);
+            break;
+        case OP_SET_LEN:
+            sb_appendf(&disasm, "\tSET_LEN\n");
+            consume_byte(code, &i);
+            break;
         case OP_PUSH:
             sb_appendf(&disasm, "\tPUSH %d\n", consume_byte(code, &i));
+            consume_byte(code, &i);
+            break;
+        case OP_PUSH_INDEX:
+            sb_appendf(&disasm, "\tPUSH_INDEX\n");
             consume_byte(code, &i);
             break;
         case OP_PUSHI:

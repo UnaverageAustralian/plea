@@ -2,15 +2,19 @@ beg "please family great almighty program !!!!!!!!!!";
 
 fnctn returns 0 nm main args let v in void calls
     call main in void endin then
-    call print in 72 endin then
-    call print in 101 endin then
-    call print in call print in 108 endin then
-    call print in 111 endin then
-    call print in 32 endin then
-    call print in 87 endin then
-    call print in 111 endin then
-    call print in 114 endin then
-    call print in 108 endin then
-    call print in 100 endin then
-    call print in 33 endin
+    let h = c[] then
+    let h = 72 then
+    let h@1 = 101 then
+    let h@2 = 108 then
+    let h@3 = 108 then
+    let h@4 = 111 then
+    let h@5 = 32 then
+    let h@6 = 87 then
+    let h@7 = 111 then
+    let h@8 = 114 then
+    let h@9 = 108 then
+    let h@10 = 100 then
+    let h@11 = 33 then
+    let lng of h[] = 12 then
+    call print in h[] endin
 ;

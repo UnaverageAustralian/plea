@@ -15,14 +15,41 @@ typedef enum {
     OP_WHEN_NOT, OP_POPR, OP_JMPBS,
     OP_JMPS, OP_ADD, OP_SUB,
     OP_PROMISE, OP_PROMISE_NOT,
+    OP_PUSH_INDEX, OP_SET_INDEX,
+    OP_SET_LEN, OP_SET_ARRAY
 } Op_Code;
+
+typedef struct {
+    int type;
+    union {
+        int integer;
+        float real;
+        uintptr_t pointer;
+    } as;
+} Value;
+
+typedef union Value32 {
+    int integer;
+    float real;
+} Value32;
+
+typedef struct {
+    char *name;
+    int type;
+} Var;
+
+typedef struct {
+    size_t len;
+    Value32 *items;
+} Array;
 
 typedef struct {
     char *name;
     int location;
     int arity;
-    char **vars;
+    Var *vars;
     int vars_count;
+    int return_type;
 } Function;
 
 typedef struct {
@@ -34,7 +61,7 @@ typedef struct {
 typedef struct {
     size_t count;
     size_t capacity;
-    int *constants;
+    Value *constants;
 } Constant_List;
 
 typedef struct {
