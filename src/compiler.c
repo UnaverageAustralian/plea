@@ -676,7 +676,7 @@ void init_compiler(Token_List *tokens, Compiler *compiler) {
     code->constant_list = malloc(sizeof(Constant_List));
     code->constant_list->count = 0;
     code->constant_list->capacity = 4;
-    code->constant_list->constants = malloc(4 * sizeof(int));
+    code->constant_list->constants = malloc(4 * sizeof(Value));
 
     code->line_positions = malloc(sizeof(Line_Pos_List));
     code->line_positions->count = 0;

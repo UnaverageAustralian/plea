@@ -38,9 +38,10 @@ void sb_appendf(String_Builder *sb, char *format, ...) {
     va_end(args);
 }
 
-int *allocate_scope(int *vars, int scope) {
+Value *allocate_scope(Value *vars, int scope) {
     vars = realloc(vars, (scope+1)*256*sizeof(Value));
     assert(vars != NULL);
+    memset(vars + scope*256, 0, 256*sizeof(Value));
     return vars;
 }
 
@@ -62,8 +63,8 @@ void when_queue_add(When_Queue *when_queue, uint8_t cond, int val1, int val2, in
 }
 
 void push(Value **stack_ptr, Value val, int type) {
-    (*stack_ptr)->type = type;
     **stack_ptr = val;
+    (*stack_ptr)->type = type;
     (*stack_ptr)++;
 }
 
@@ -83,6 +84,7 @@ Value pop(Value **stack_ptr) {
     (*stack_ptr)--;
     Value val = **stack_ptr;
     (*stack_ptr)->as.integer = 0;
+    (*stack_ptr)->type = 0;
     return val;
 }
 
@@ -125,7 +127,7 @@ void skip_instruction(Code *code, int *cur_byte) {
 void run_bytecode(Code *code) {
     Value return_stack[MAX_SCOPE];
     Value stack[1024];
-    Value *vars = malloc(256 * sizeof(Value));
+    Value *vars = calloc(256, sizeof(Value));
 
     When_Queue when_queue = (When_Queue){
         .count = 0,
@@ -324,30 +326,34 @@ void run_bytecode(Code *code) {
             consume_byte(code, &cur_byte);
             break;
         case OP_SET_ARRAY: {
-            int index = consume_byte(code, &cur_byte);
+            int index = consume_byte(code, &cur_byte) + scope*256;
             vars[index].type = 2;
             vars[index].as.pointer = (uintptr_t)malloc(sizeof(Array));
             ((Array *)vars[index].as.pointer)->len = 16;
             ((Array *)vars[index].as.pointer)->items = malloc(16 * sizeof(Value32));
+            assert(((Array *)vars[index].as.pointer)->items != NULL);
             consume_byte(code, &cur_byte);
             break;
         }
         case OP_SET_INDEX: {
             int val = pop(&stack_ptr).as.integer;
             int index = pop(&stack_ptr).as.integer;
-            ((Array *)vars[pop(&stack_ptr).as.integer].as.pointer)->items[index].integer = val;
+            ((Array *)vars[pop(&stack_ptr).as.integer + scope*256].as.pointer)->items[index].integer = val;
             consume_byte(code, &cur_byte);
             break;
         }
         case OP_SET_LEN: {
-            int array = pop(&stack_ptr).as.integer;
-            ((Array *)vars[array].as.pointer)->len = pop(&stack_ptr).as.integer;
+            int array = pop(&stack_ptr).as.integer + scope*256;
+            int len = pop(&stack_ptr).as.integer;
+            ((Array *)vars[array].as.pointer)->len = len;
+            ((Array *)vars[array].as.pointer)->items = realloc(((Array *)vars[array].as.pointer)->items, len * sizeof(Value32));
+            assert(((Array *)vars[array].as.pointer)->items != NULL);
             consume_byte(code, &cur_byte);
             break;
         }
         case OP_PUSH_INDEX: {
             int index = pop(&stack_ptr).as.integer;
-            push_i(&stack_ptr, ((Array *)vars[pop(&stack_ptr).as.integer].as.pointer)->items[index].integer);
+            push_i(&stack_ptr, ((Array *)vars[pop(&stack_ptr).as.integer + scope*256].as.pointer)->items[index].integer);
             consume_byte(code, &cur_byte);
             break;
         }
