@@ -97,22 +97,22 @@ void error(Compiler *compiler, char *message, int line) {
 }
 
 void expect_token(Compiler *compiler, Token_Kind token_kind) {
-    int pos = compiler->pos-1;
-    while (compiler->tokens->toks[pos].kind != THEN
-        && compiler->tokens->toks[pos].kind != CALLS
-        && compiler->tokens->toks[pos].kind != FNCTN
-        && compiler->tokens->toks[pos].kind != BEG) {
-        pos--;
-    }
-    pos++;
-
-    while (compiler->tokens->toks[pos].kind != THEN && compiler->tokens->toks[pos].kind != SEMICOLON && compiler->tokens->toks[pos].kind != CALLS) {
-        if (compiler->tokens->toks[pos].kind == CATCH && compiler->tokens->toks[pos+1].kind == ERROR) return;
-        pos++;
-    }
-
     compiler->pos++;
     if (cur_token(compiler).kind != token_kind) {
+        int pos = compiler->pos-1;
+        while (compiler->tokens->toks[pos].kind != THEN
+            && compiler->tokens->toks[pos].kind != CALLS
+            && compiler->tokens->toks[pos].kind != FNCTN
+            && compiler->tokens->toks[pos].kind != BEG) {
+            pos--;
+            }
+        pos++;
+
+        while (compiler->tokens->toks[pos].kind != THEN && compiler->tokens->toks[pos].kind != SEMICOLON && compiler->tokens->toks[pos].kind != CALLS) {
+            if (compiler->tokens->toks[pos].kind == CATCH && compiler->tokens->toks[pos+1].kind == ERROR) return;
+            pos++;
+        }
+
 #ifdef PLEA_DEBUG
         fprintf(stderr, "Expected %s, got %s\n", token_to_string(token_kind), token_to_string(cur_token(compiler).kind));
 #else
@@ -123,22 +123,22 @@ void expect_token(Compiler *compiler, Token_Kind token_kind) {
 }
 
 Token get_and_expect_token(Compiler *compiler, Token_Kind token_kind) {
-    int pos = compiler->pos-1;
-    while (compiler->tokens->toks[pos].kind != THEN
-        && compiler->tokens->toks[pos].kind != CALLS
-        && compiler->tokens->toks[pos].kind != FNCTN
-        && compiler->tokens->toks[pos].kind != BEG) {
-        pos--;
-    }
-    pos++;
-
-    while (compiler->tokens->toks[pos].kind != THEN && compiler->tokens->toks[pos].kind != SEMICOLON && compiler->tokens->toks[pos].kind != CALLS) {
-        if (compiler->tokens->toks[pos].kind == CATCH && compiler->tokens->toks[pos+1].kind == ERROR) return (Token){ .kind = NONE, .int_val = 0 };
-        pos++;
-    }
-
     compiler->pos++;
     if (cur_token(compiler).kind != token_kind) {
+        int pos = compiler->pos-1;
+        while (compiler->tokens->toks[pos].kind != THEN
+            && compiler->tokens->toks[pos].kind != CALLS
+            && compiler->tokens->toks[pos].kind != FNCTN
+            && compiler->tokens->toks[pos].kind != BEG) {
+            pos--;
+            }
+        pos++;
+
+        while (compiler->tokens->toks[pos].kind != THEN && compiler->tokens->toks[pos].kind != SEMICOLON && compiler->tokens->toks[pos].kind != CALLS) {
+            if (compiler->tokens->toks[pos].kind == CATCH && compiler->tokens->toks[pos+1].kind == ERROR) return (Token){ .kind = NONE, .int_val = 0 };
+            pos++;
+        }
+
 #ifdef PLEA_DEBUG
         fprintf(stderr, "Expected %s, got %s\n", token_to_string(token_kind), token_to_string(cur_token(compiler).kind));
 #else
@@ -180,9 +180,8 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
         cond = 1;
     }
 
-    da_append(compiler->code, OP_RET, bytes);
+    da_append(compiler->code, OP_RETS, bytes);
 
-    int instruc_start = (int)compiler->code->count;
     Token rhs = consume_token(compiler);
 
     int mode = 0;
@@ -227,20 +226,13 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
         da_append(compiler->code, cond ? OP_PROMISE : OP_PROMISE_NOT, bytes);
     }
 
-    int instruc_end = (int)compiler->code->count;
-
     if (cur_byte_pos > 256) {
-        add_bytes(compiler->code, 2, OP_CONST, compiler->code->constant_list->count);
+        add_bytes(compiler->code, 2, OP_JMPBSC, compiler->code->constant_list->count);
         add_constant(compiler->code->constant_list, cur_byte_pos);
     }
     else {
-        add_bytes(compiler->code, 2, OP_PUSHI, cur_byte_pos);
+        add_bytes(compiler->code, 2, OP_JMPBSI, cur_byte_pos);
     }
-
-    for (int i = instruc_start; i < instruc_end; i++) {
-        da_append(compiler->code, compiler->code->bytes[i], bytes);
-    }
-    da_append(compiler->code, OP_JMPBS, bytes);
 }
 
 int compile_function_declaration(Compiler *compiler) {
@@ -294,7 +286,23 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
     else if (cur_token.kind == IDENT) {
         int var_index = find_var(compiler, cur_token.ident_name);
         if (var_index != -1) {
-            add_bytes(compiler->code, 2, OP_PUSH, var_index);
+            if (peek_token(compiler).kind == AT) {
+                compiler->pos += 2;
+                add_bytes(compiler->code, 2, OP_PUSHI, var_index);
+                compile_expr(compiler);
+                da_append(compiler->code, OP_PUSH_INDEX, bytes);
+            }
+            else if (compiler->cur_function->vars[var_index].type > 1 && peek_token(compiler).kind == L_BRACKET) {
+                consume_token(compiler);
+                expect_token(compiler, R_BRACKET);
+                add_bytes(compiler->code, 2, OP_PUSH, var_index);
+            }
+            else if (compiler->cur_function->vars[var_index].type > 1) {
+                add_bytes(compiler->code, 5, OP_PUSHI, var_index, OP_PUSHI, 0, OP_PUSH_INDEX);
+            }
+            else {
+                add_bytes(compiler->code, 2, OP_PUSH, var_index);
+            }
         }
         else {
             error(compiler, "Variable not found", __LINE__);

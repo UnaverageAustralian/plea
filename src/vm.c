@@ -63,18 +63,27 @@ void when_queue_add(When_Queue *when_queue, uint8_t cond, int val1, int val2, in
 }
 
 void push(Value **stack_ptr, Value val, int type) {
+#ifdef PLEA_DEBUG
+    printf("(%d)", val.as.integer);
+#endif
     **stack_ptr = val;
     (*stack_ptr)->type = type;
     (*stack_ptr)++;
 }
 
 void push_p(Value **stack_ptr, uintptr_t val) {
+#ifdef PLEA_DEBUG
+    printf("(%p)", (Array *)val);
+#endif
     (*stack_ptr)->type = 2;
     (*stack_ptr)->as.pointer = val;
     (*stack_ptr)++;
 }
 
 void push_i(Value **stack_ptr, int val) {
+#ifdef PLEA_DEBUG
+    printf("(%d)", val);
+#endif
     (*stack_ptr)->type = 0;
     (*stack_ptr)->as.integer = val;
     (*stack_ptr)++;
@@ -101,6 +110,8 @@ void skip_instruction(Code *code, int *cur_byte) {
     case OP_SET_VAR: *cur_byte += 3; break;
     case OP_PUSH:
     case OP_PUSHI:
+    case OP_JMPBSC:
+    case OP_JMPBSI:
     case OP_CONST: *cur_byte += 2;   break;
     case OP_INC:
     case OP_POP:
@@ -120,12 +131,14 @@ void skip_instruction(Code *code, int *cur_byte) {
     case OP_CALL:
         while (code->bytes[*cur_byte] != '\0') (*cur_byte)++;
         break;
-    default:                         break;
+    default: fprintf(stderr, "Unknown instruction: %d\n", code->bytes[*cur_byte]); exit(1);
     }
 }
 
+void disassemble_byte(uint8_t byte, int cur_byte);
+
 void run_bytecode(Code *code) {
-    Value return_stack[MAX_SCOPE];
+    Value return_stack[256];
     Value stack[1024];
     Value *vars = calloc(256, sizeof(Value));
 
@@ -258,6 +271,9 @@ void run_bytecode(Code *code) {
             cur_byte = pop(&return_stack_ptr).as.integer;
             scope--;
             break;
+        case OP_RETS:
+            cur_byte = pop(&return_stack_ptr).as.integer;
+            break;
         case OP_BEG:
             check_beg_text((char *)&code->bytes[cur_byte+1]);
             while (code->bytes[cur_byte] != 0) {
@@ -316,6 +332,14 @@ void run_bytecode(Code *code) {
         case OP_JMPBS:
             push_i(&return_stack_ptr, cur_byte+1);
             cur_byte = pop(&stack_ptr).as.integer;
+            break;
+        case OP_JMPBSI:
+            push_i(&return_stack_ptr, cur_byte+2);
+            cur_byte = consume_byte(code, &cur_byte);
+            break;
+        case OP_JMPBSC:
+            push_i(&return_stack_ptr, cur_byte+2);
+            cur_byte = code->constant_list->constants[consume_byte(code, &cur_byte)].as.integer;
             break;
         case OP_ADD:
             push_i(&stack_ptr, pop(&stack_ptr).as.integer+pop(&stack_ptr).as.integer);
@@ -378,7 +402,12 @@ void run_bytecode(Code *code) {
                 }
                 break;
             }
+            if (when_queue.whens[i].loc > cur_byte) when_queue.whens[i].cond = -1;
         }
+
+#ifdef PLEA_DEBUG
+        disassemble_byte(code->bytes[cur_byte], cur_byte);
+#endif
     }
 
     for (int i = 0; i < vars_count; i++) {
@@ -389,6 +418,44 @@ void run_bytecode(Code *code) {
     }
     free(when_queue.whens);
     free(vars);
+}
+
+void disassemble_byte(uint8_t byte, int cur_byte) {
+    switch (byte) {
+    case OP_CONST: printf("\tCONST");             break;
+    case OP_INC: printf("\tINC");                 break;
+    case OP_DEC: printf("\tDEC");                 break;
+    case OP_SET_VAR: printf("\tSET_VAR");         break;
+    case OP_SET_ARRAY: printf("\tSET_ARRAY");     break;
+    case OP_SET_INDEX: printf("\tSET_INDEX");     break;
+    case OP_SET_LEN: printf("\tSET_LEN");         break;
+    case OP_PUSH: printf("\tPUSH");               break;
+    case OP_PUSH_INDEX: printf("\tPUSH_INDEX");   break;
+    case OP_PUSHI: printf("\tPUSHI");             break;
+    case OP_POP: printf("\tPOP");                 break;
+    case OP_CALL: printf("\tCALL");               break;
+    case OP_RET: printf("\tRET");                 break;
+    case OP_BEG: printf("\tBEG");                 break;
+    case OP_FNCTN: printf("\tFNCTN");             break;
+    case OP_HLT: printf("\tHLT");                 break;
+    case OP_INPUT: printf("\tINPUT");             break;
+    case OP_JMP: printf("\tJMP");                 break;
+    case OP_JMPB: printf("\tJMPB");               break;
+    case OP_WHEN: printf("\tWHEN");               break;
+    case OP_WHEN_NOT: printf("\tWHEN_NOT");       break;
+    case OP_PROMISE: printf("\tPROMISE");         break;
+    case OP_PROMISE_NOT: printf("\tPROMISE_NOT"); break;
+    case OP_POPR: printf("\tPOPR");               break;
+    case OP_JMPS: printf("\tJMPS");               break;
+    case OP_JMPBS: printf("\tJMPBS");             break;
+    case OP_ADD: printf("\tADD");                 break;
+    case OP_SUB: printf("\tSUB");                 break;
+    case OP_RETS: printf("\tRETS");               break;
+    case OP_JMPBSI: printf("\tJMPBSI");           break;
+    case OP_JMPBSC: printf("\tJMPBSC");           break;
+    default: fprintf(stderr, "Unknown instruction: %d\n", byte); exit(1);
+    }
+    printf(" (%d)\n", cur_byte);
 }
 
 char *disassemble(Code *code) {
@@ -402,7 +469,7 @@ char *disassemble(Code *code) {
     while (i < code->count) {
         switch (code->bytes[i]) {
         case OP_CONST:
-            sb_appendf(&disasm, "\tCONST %d (%d)\n", consume_byte(code, &i), code->constant_list->constants[code->bytes[i]]);
+            sb_appendf(&disasm, "\tCONST %d (%d)\n", consume_byte(code, &i), code->constant_list->constants[code->bytes[i]].as.integer);
             consume_byte(code, &i);
             break;
         case OP_INC:
@@ -444,6 +511,14 @@ char *disassemble(Code *code) {
             break;
         case OP_PUSHI:
             sb_appendf(&disasm, "\tPUSHI %d\n", consume_byte(code, &i));
+            consume_byte(code, &i);
+            break;
+        case OP_JMPBSI:
+            sb_appendf(&disasm, "\tJMPBSI %d\n", consume_byte(code, &i));
+            consume_byte(code, &i);
+            break;
+        case OP_JMPBSC:
+            sb_appendf(&disasm, "\tJMPBSC %d\n", consume_byte(code, &i));
             consume_byte(code, &i);
             break;
         case OP_POP:
@@ -528,6 +603,10 @@ char *disassemble(Code *code) {
             break;
         case OP_SUB:
             sb_appendf(&disasm, "\tSUB\n");
+            consume_byte(code, &i);
+            break;
+        case OP_RETS:
+            sb_appendf(&disasm, "\tRETS\n");
             consume_byte(code, &i);
             break;
         default: fprintf(stderr, "Unknown instruction: %d\n", code->bytes[i]); exit(1);

@@ -1,0 +1,70 @@
+beg "please family great almighty program !!!!!!!!!!";
+
+fnctn returns 0 nm main args let v in void calls
+    call main in void endin then
+
+    let lookup = i[] then
+    let lookup = 0 then
+    let lookup@1 = 1 then
+    let lookup@2 = 1 then
+    let lookup@3 = 1 then
+    let lookup@4 = 0 then
+    let lookup@5 = 1 then
+    let lookup@6 = 1 then
+    let lookup@7 = 0 then
+    let lng of lookup[] = 8 then
+
+    let next = i[] then
+    let cells = i[] then
+    let lng of next[] = 22 then
+    let lng of cells[] = 22 then
+
+    let iter = 1 then
+    jmp _++++++ when iter is 21 then
+        let cells@iter = 0 then
+        let next@iter = 0 then
+        chg iter,*+ then
+    jmp _--- then
+    let cells@0 = 1 then
+    let cells@20 = 1 then
+    let cells@21 = 1 then
+    let next@0 = 1 then
+    let next@21 = 1 then
+
+    let j = 0 then
+    jmp _++++++++++++++++++++++++++++++++++++++++ when j is 17 then
+        let cell = i then
+        chg iter,1 then
+        jmp _+++++++++ when iter is 21 then
+            chg cell,cells@iter then
+            call print in 35 endin when cell is 1 catch error then
+            call print in 46 endin when cell is 0 catch error then
+            chg iter,*+ then
+        jmp _------ then
+
+        chg iter,1 then
+        jmp _+++++++++++++++++ when iter is 22 then
+            let state = i then
+            chg cell,cells@chg iter,*- then
+            chg iter,*+ then
+            chg state,*++++ when cell is 1 catch error then
+            let cell2 = cells@iter then
+            chg state,*++ when cell2 is 1 catch error then
+            let cell3 = cells@chg iter,*+ then
+            chg iter,*- then
+            chg state,*+ when cell3 is 1 catch error then
+            let next@iter = lookup@state then
+            chg iter,*+ then
+        jmp _-------------- then
+
+        chg iter,1 then
+        jmp _+++++ when iter is 21 then
+            let cells@iter = next@iter then
+            chg iter,*+ then
+        jmp _-- then
+
+        call print in 10 endin then
+
+        chg j,*+ then
+    jmp _-------------------------------------
+;
