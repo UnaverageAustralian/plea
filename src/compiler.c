@@ -105,7 +105,7 @@ void expect_token(Compiler *compiler, Token_Kind token_kind) {
             && compiler->tokens->toks[pos].kind != FNCTN
             && compiler->tokens->toks[pos].kind != BEG) {
             pos--;
-            }
+        }
         pos++;
 
         while (compiler->tokens->toks[pos].kind != THEN && compiler->tokens->toks[pos].kind != SEMICOLON && compiler->tokens->toks[pos].kind != CALLS) {
@@ -131,7 +131,7 @@ Token get_and_expect_token(Compiler *compiler, Token_Kind token_kind) {
             && compiler->tokens->toks[pos].kind != FNCTN
             && compiler->tokens->toks[pos].kind != BEG) {
             pos--;
-            }
+        }
         pos++;
 
         while (compiler->tokens->toks[pos].kind != THEN && compiler->tokens->toks[pos].kind != SEMICOLON && compiler->tokens->toks[pos].kind != CALLS) {
@@ -266,12 +266,21 @@ int compile_function_declaration(Compiler *compiler) {
             error(compiler, "Unknown type", __LINE__);
         }
         if (type != VOID) {
-            compiler->cur_function->vars[compiler->cur_function->vars_count] = (Var){ .name = parameter_name, .type = 0 };
+            compiler->cur_function->vars[compiler->cur_function->vars_count] = (Var){ .name = parameter_name, .type = (type - 17) >> 1 };
+            if (peek_token(compiler).kind == L_BRACKET) {
+                consume_token(compiler);
+                compiler->cur_function->vars[compiler->cur_function->vars_count].type += 2;
+                expect_token(compiler, R_BRACKET);
+            }
             add_bytes(compiler->code, 2, OP_POP, compiler->cur_function->vars_count++);
+        }
+        else {
+            compiler->cur_function->vars[compiler->cur_function->vars_count] = (Var){ .name = parameter_name, .type = 4 };
+            compiler->cur_function->vars_count++;
         }
     }
     consume_token(compiler);
-    if (peek_token(compiler).kind == CATCH) compiler->pos += 2;
+    if (peek_token(compiler).kind == CATCH) compiler->pos += 3;
     return ret_val_pos;
 }
 
@@ -287,20 +296,24 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
         int var_index = find_var(compiler, cur_token.ident_name);
         if (var_index != -1) {
             if (peek_token(compiler).kind == AT) {
+                if (compiler->cur_function->vars[var_id].type != compiler->cur_function->vars[var_index].type-2) error(compiler, "Incompatible type", __LINE__);
                 compiler->pos += 2;
                 add_bytes(compiler->code, 2, OP_PUSHI, var_index);
                 compile_expr(compiler);
                 da_append(compiler->code, OP_PUSH_INDEX, bytes);
             }
             else if (compiler->cur_function->vars[var_index].type > 1 && peek_token(compiler).kind == L_BRACKET) {
+                if (compiler->cur_function->vars[var_id].type != compiler->cur_function->vars[var_index].type) error(compiler, "Incompatible type", __LINE__);
                 consume_token(compiler);
                 expect_token(compiler, R_BRACKET);
                 add_bytes(compiler->code, 2, OP_PUSH, var_index);
             }
             else if (compiler->cur_function->vars[var_index].type > 1) {
+                if (compiler->cur_function->vars[var_id].type != compiler->cur_function->vars[var_index].type-2) error(compiler, "Incompatible type", __LINE__);
                 add_bytes(compiler->code, 5, OP_PUSHI, var_index, OP_PUSHI, 0, OP_PUSH_INDEX);
             }
             else {
+                if (compiler->cur_function->vars[var_id].type != compiler->cur_function->vars[var_index].type) error(compiler, "Incompatible type", __LINE__);
                 add_bytes(compiler->code, 2, OP_PUSH, var_index);
             }
         }
@@ -309,7 +322,9 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
         }
     }
     else {
-        compile_expr(compiler);
+        if (compiler->cur_function->vars[var_id].type != compile_expr(compiler)) {
+            error(compiler, "Incompatible type", __LINE__);
+        }
         add_bytes(compiler->code, 2, OP_POP, var_id);
         return;
     }
@@ -393,7 +408,7 @@ void compile_let(Compiler *compiler) {
         expect_token(compiler, EQUALS);
 
         consume_token(compiler);
-        compile_expr(compiler);
+        if (compiler->cur_function->vars[var_index].type-2 != compile_expr(compiler)) error(compiler, "Incompatible type", __LINE__);
 
         da_append(compiler->code, OP_SET_INDEX, bytes);
     }
@@ -404,10 +419,11 @@ void compile_let(Compiler *compiler) {
         }
         consume_token(compiler);
         expect_token(compiler, EQUALS);
-        add_bytes(compiler->code, 4, OP_PUSHI, 0, OP_PUSHI, 0);
+        add_bytes(compiler->code, 4, OP_PUSHI, var_index, OP_PUSHI, 0);
 
         consume_token(compiler);
         compile_expr(compiler);
+        if (compiler->cur_function->vars[var_index].type-2 != compile_expr(compiler)) error(compiler, "Incompatible type", __LINE__);
 
         da_append(compiler->code, OP_SET_INDEX, bytes);
     }
@@ -476,7 +492,11 @@ int compile_chg(Compiler *compiler) {
         consume_token(compiler);
         expect_token(compiler, COMMA);
         if (peek_token(compiler).kind == INTEGER || peek_token(compiler).kind == REAL) {
-            int val = get_and_expect_token(compiler, INTEGER).int_val;
+            if (compiler->cur_function->vars[var_index].type != peek_token(compiler).kind - 22) {
+                error(compiler, "Incompatible type", __LINE__);
+            }
+
+            int val = consume_token(compiler).int_val;
             if (val < 256 && val >= 0) {
                 add_bytes(compiler->code, 3, OP_SET_VAR, var_index, val);
             }
@@ -512,18 +532,41 @@ int compile_function_call(Compiler *compiler) {
         cur_byte_pos = (int)compiler->code->count;
     }
 
+    int function;
+    for (function = 0; function < compiler->code->function_list->count; function++) {
+        if (strcmp(function_name, compiler->code->function_list->functions[function].name) == 0) break;
+        if (function == compiler->code->function_list->count - 1 && strcmp(function_name, "print") != 0) {
+            error(compiler, "Function not found", __LINE__);
+        }
+    }
+
     int arguments = 0;
     for (; ;) {
         arguments++;
         if (peek_token(compiler).kind == IDENT && strcmp(peek_token(compiler).ident_name, "input") == 0) {
+            if (strcmp(function_name, "print") != 0 && compiler->code->function_list->functions[function].vars[arguments-1].type != 2) {
+                error(compiler, "Argument has wrong type", __LINE__);
+            }
             da_append(compiler->code, OP_INPUT, bytes);
             consume_token(compiler);
         }
         else if (peek_token(compiler).kind != VOID) {
             consume_token(compiler);
-            compile_expr(compiler);
+            type = compile_expr(compiler);
+            if (strcmp(function_name, "print") == 0) {
+                if (type != 2 && type != 0) error(compiler, "Argument has wrong type", __LINE__);
+            }
+            else if (compiler->code->function_list->functions[function].vars[arguments-1].type != type) {
+                error(compiler, "Argument has wrong type", __LINE__);
+            }
         }
         else {
+            if (strcmp(function_name, "print") == 0) {
+                error(compiler, "Argument has wrong type", __LINE__);
+            }
+            else if (compiler->code->function_list->functions[function].vars[arguments-1].type != 4) {
+                error(compiler, "Argument has wrong type", __LINE__);
+            }
             consume_token(compiler);
         }
         if (peek_token(compiler).kind != COMMA) {
@@ -535,19 +578,15 @@ int compile_function_call(Compiler *compiler) {
         }
         consume_token(compiler);
     }
-    for (int i = 0; i < compiler->code->function_list->count; i++) {
-        if (strcmp(function_name, compiler->code->function_list->functions[i].name) == 0) {
-            type = compiler->code->function_list->functions[i].return_type;
-            if (compiler->code->function_list->functions[i].arity != arguments)
-                error(compiler, "Function call has wrong amount of arguments", __LINE__);
-            break;
-        }
-        if (i == compiler->code->function_list->count - 1 && strcmp(function_name, "print") == 0) {
-            if (arguments != 1) error(compiler, "Function call has wrong amount of arguments", __LINE__);
-        }
-        else if (i == compiler->code->function_list->count - 1) {
-            error(compiler, "Function not found", __LINE__);
-        }
+    if (strcmp(function_name, "print") != 0) {
+        type = compiler->code->function_list->functions[function].return_type;
+    }
+
+    if (strcmp(function_name, "print") == 0) {
+        if (arguments != 1) error(compiler, "Function call has wrong amount of arguments", __LINE__);
+    }
+    else if (compiler->code->function_list->functions[function].arity != arguments) {
+        error(compiler, "Function call has wrong amount of arguments", __LINE__);
     }
 
     if (peek_token(compiler).kind == WHEN) {
@@ -731,7 +770,6 @@ Code *compile(Token_List *tokens) {
                 compiler.pos = cur_position;
 
                 compiler.is_in_function = 0;
-                free(compiler.cur_function->vars);
                 break;
             }
             case FNCTN:
@@ -764,6 +802,9 @@ Code *compile(Token_List *tokens) {
         else {
             token = consume_token(&compiler);
         }
+    }
+    for (int i = 0; i < compiler.code->function_list->count; i++) {
+        free(compiler.code->function_list->functions[i].vars);
     }
     compiler.code->line_positions->count--;
     return compiler.code;

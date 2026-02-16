@@ -3,8 +3,8 @@ This is a comment
 
 fnctn returns chg a,*+.xb nm add args let a in int let b in int calls;
 
-fnctn returns 5 nm test args let a in int calls
-    call print in a endin
+fnctn returns 5 nm test args let a in int[] calls
+    call print in a[] endin
 ;
 
 fnctn returns 0 nm main args let v in void calls

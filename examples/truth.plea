@@ -1,9 +1,12 @@
 beg "please family great almighty program !!!!!!!!!!";
 
+fnctn returns a@0 nm getinput args let a in int[] calls;
+
 fnctn returns 0 nm main args let v in void calls
     call main in void endin then
-    let x = call print in input endin then
+    let x = call getinput in input endin then
     jmp _++++ when x is 48 then
     let y = call print in x endin then
-    jmp _-
+    jmp _- then
+    call print in x endin
 ;

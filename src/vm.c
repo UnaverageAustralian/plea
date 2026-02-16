@@ -267,7 +267,6 @@ void run_bytecode(Code *code) {
                 }
             }
 
-            pop(&stack_ptr);
             cur_byte = pop(&return_stack_ptr).as.integer;
             scope--;
             break;
@@ -288,10 +287,25 @@ void run_bytecode(Code *code) {
             consume_byte(code, &cur_byte);
             break;
         case OP_INPUT: {
-            char c;
+            vars[vars_count-1].type = 2;
+            vars[vars_count-1].as.pointer = (uintptr_t)malloc(sizeof(Array));
+            ((Array *)vars[vars_count-1].as.pointer)->len = 64;
+            ((Array *)vars[vars_count-1].as.pointer)->items = malloc(64 * sizeof(Value32));
+            assert(((Array *)vars[vars_count-1].as.pointer)->items != NULL);
+
             printf("\n");
-            scanf(" %c", &c);
-            push_i(&stack_ptr, c);
+
+            char buf[64];
+            fgets(buf, sizeof(buf), stdin);
+
+            int i = 0;
+            while (buf[i] != '\n' && buf[i] != '\0') {
+                ((Array *)vars[vars_count-1].as.pointer)->items[i].integer = (int)buf[i];
+                i++;
+            }
+            ((Array *)vars[vars_count-1].as.pointer)->len = i;
+
+            push(&stack_ptr, vars[vars_count-1], vars[vars_count-1].type);
             consume_byte(code, &cur_byte);
             break;
         }
@@ -410,12 +424,26 @@ void run_bytecode(Code *code) {
 #endif
     }
 
+    uintptr_t *freed = malloc(vars_count * sizeof(uintptr_t));
+    int freed_count = 0;
     for (int i = 0; i < vars_count; i++) {
         if (vars[i].type == 2) {
-            free(((Array *)vars[i].as.pointer)->items);
-            free((Array *)vars[i].as.pointer);
+            int already_freed = 0;
+            for (int j = 0; j < freed_count; j++) {
+                if (freed[j] == vars[i].as.pointer) {
+                    already_freed = 1;
+                    break;
+                }
+            }
+
+            if (!already_freed) {
+                free(((Array *)vars[i].as.pointer)->items);
+                free((Array *)vars[i].as.pointer);
+                freed[freed_count++] = vars[i].as.pointer;
+            }
         }
     }
+    free(freed);
     free(when_queue.whens);
     free(vars);
 }
