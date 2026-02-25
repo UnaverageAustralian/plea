@@ -42,17 +42,18 @@ char peek(Lexer *lexer) {
 }
 
 void lex_number(Lexer *lexer) {
-    add_token(lexer->tokens, NONE);
+    add_token(lexer->tokens, INTEGER);
     Token_Kind *token_kind = &lexer->tokens->toks[lexer->tokens->count-1].kind;
     char number[48];
 
-    char c = *(lexer->src + lexer->pos - 1);
-    for (int i = 0; c != '\n'; i++) {
-        if (i == 0 & c == '-') {
-            number[0] = '-';
-            c = consume(lexer);
-            continue;
-        }
+    char c = lexer->src[lexer->pos-1];
+    if (c == '-') {
+        number[0] = '-';
+        c = consume(lexer);
+    }
+
+    int i = 0;
+    while (c != '\n') {
         if (c == '.') *token_kind = REAL;
 
         if (i >= 47) {
@@ -65,13 +66,13 @@ void lex_number(Lexer *lexer) {
 
         if (peek(lexer) == '\0' || (!isdigit(peek(lexer)) && peek(lexer) != '.')) break;
         c = consume(lexer);
+        i++;
     }
 
     if (*token_kind == REAL) {
         lexer->tokens->toks[lexer->tokens->count-1].real_val = strtof(number, NULL);
     }
     else {
-        *token_kind = INTEGER;
         lexer->tokens->toks[lexer->tokens->count-1].int_val = (int)strtol(number, NULL, 10);
     }
 }
@@ -81,8 +82,9 @@ void lex_ident_or_keyword(Lexer *lexer) {
     char *ident_name = lexer->tokens->toks[lexer->tokens->count-1].ident_name;
     Token_Kind *token_kind = &lexer->tokens->toks[lexer->tokens->count-1].kind;
 
+    int i = 0;
     char c = *(lexer->src + lexer->pos - 1);
-    for (int i = 0; c != '\n'; i++) {
+    while (c != '\n') {
         if (i > 255) {
             fprintf(stderr, "Identifier is too long");
             exit(1);
@@ -91,28 +93,28 @@ void lex_ident_or_keyword(Lexer *lexer) {
         ident_name[i] = c;
         ident_name[i+1] = '\0';
 
-        if (peek(lexer) == '\0' || !isalnum(peek(lexer))) break;
+        if (peek(lexer) == '\0' || (!isalnum(peek(lexer)) && peek(lexer) != '_')) break;
         c = consume(lexer);
+        i++;
     }
 
-    for (int i = 0; i < NUM_KEYWORDS; i++) {
+    for (i = 0; i < NUM_KEYWORDS; i++) {
         if (strcmp(ident_name, keywords[i]) == 0) {
             *token_kind = i+11;
             break;
         }
     }
 
-    if (*token_kind == NONE) {
-        *token_kind = IDENT;
-    }
+    if (*token_kind == NONE) *token_kind = IDENT;
 }
 
 void lex_string(Lexer *lexer) {
     add_token(lexer->tokens, STRING);
     char *ident_name = lexer->tokens->toks[lexer->tokens->count-1].ident_name;
 
+    char c = consume(lexer);
     int i = 0;
-    for (char c; (c = consume(lexer)) != '\"'; i++) {
+    while (c != '\"') {
         if (c == '\n') {
             fprintf(stderr, "Premature end of line");
             exit(1);
@@ -128,6 +130,8 @@ void lex_string(Lexer *lexer) {
         }
 
         ident_name[i] = c;
+        c = consume(lexer);
+        i++;
     }
     ident_name[i+1] = '\0';
 }
@@ -170,6 +174,9 @@ Token_List lex(char *src) {
         case '_':
             if (peek(&lexer) == '+' || peek(&lexer) == '-') {
                 add_token(&tokens, UNDER);
+            }
+            else {
+                lex_ident_or_keyword(&lexer);
             }
             break;
         case ' ':
