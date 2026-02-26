@@ -786,12 +786,6 @@ Code *compile(Token_List *tokens) {
             compiler.is_in_function = 1;
         }
         else {
-            if (token.kind == BEG) {
-                da_append(compiler.code, OP_BEG, bytes);
-                consume_token(&compiler);
-                add_string(compiler.code, tokens->toks[1].ident_name);
-                expect_token(&compiler, SEMICOLON);
-            }
             token = consume_token(&compiler);
         }
     }
