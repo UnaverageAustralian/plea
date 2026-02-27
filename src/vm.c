@@ -359,10 +359,13 @@ void run_bytecode(Code *code) {
             push_i(&stack_ptr, pop(&stack_ptr).as.integer+pop(&stack_ptr).as.integer);
             consume_byte(code, &cur_byte);
             break;
-        case OP_SUB:
-            push_i(&stack_ptr, pop(&stack_ptr).as.integer-pop(&stack_ptr).as.integer);
+        case OP_SUB: {
+            int num1 = pop(&stack_ptr).as.integer;
+            int num2 = pop(&stack_ptr).as.integer;
+            push_i(&stack_ptr, num2 - num1);
             consume_byte(code, &cur_byte);
             break;
+        }
         case OP_SET_ARRAY: {
             int index = consume_byte(code, &cur_byte) + scope*256;
             vars[index].type = 2;
