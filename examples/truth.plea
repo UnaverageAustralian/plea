@@ -8,5 +8,6 @@ fnctn returns 0 nm main args let v in void calls
     jmp _++++ when x is 48 then
     let y = call print in x endin then
     jmp _- then
-    call print in x endin
+    call print in x endin then
+    call print in 10 endin
 ;

@@ -15,6 +15,7 @@ fnctn returns 0 nm main args let v in void calls
     let h@9 = 108 then
     let h@10 = 100 then
     let h@11 = 33 then
-    let lng of h[] = 12 then
+    let h@12 = 10 then
+    let lng of h[] = 13 then
     call print in h[] endin
 ;
