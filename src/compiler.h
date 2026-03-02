@@ -17,7 +17,8 @@ typedef enum {
     OP_PROMISE, OP_PROMISE_NOT,
     OP_PUSH_INDEX, OP_SET_INDEX,
     OP_SET_LEN, OP_SET_ARRAY,
-    OP_RETS, OP_JMPBSI, OP_JMPBSC
+    OP_RETS, OP_JMPBSI, OP_JMPBSC,
+    OP_SETP_INDEX, OP_SETP_LEN,
 } Op_Code;
 
 typedef struct {

@@ -294,29 +294,8 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
         add_bytes(compiler->code, 2, OP_PUSH, var_id);
     }
     else if (cur_token.kind == IDENT) {
-        int var_index = find_var(compiler, cur_token.ident_name);
-
-        if (var_index == -1) error(compiler, "Variable not found", __LINE__);
-        if (peek_token(compiler).kind == AT) {
-            if (compiler->cur_function->vars[var_id].type != compiler->cur_function->vars[var_index].type-2) error(compiler, "Incompatible type", __LINE__);
-            compiler->pos += 2;
-            add_bytes(compiler->code, 2, OP_PUSHI, var_index);
-            compile_expr(compiler);
-            da_append(compiler->code, OP_PUSH_INDEX, bytes);
-        }
-        else if (compiler->cur_function->vars[var_index].type > 1 && peek_token(compiler).kind == L_BRACKET) {
-            if (compiler->cur_function->vars[var_id].type != compiler->cur_function->vars[var_index].type) error(compiler, "Incompatible type", __LINE__);
-            consume_token(compiler);
-            expect_token(compiler, R_BRACKET);
-            add_bytes(compiler->code, 2, OP_PUSH, var_index);
-        }
-        else if (compiler->cur_function->vars[var_index].type > 1) {
-            if (compiler->cur_function->vars[var_id].type != compiler->cur_function->vars[var_index].type-2) error(compiler, "Incompatible type", __LINE__);
-            add_bytes(compiler->code, 5, OP_PUSHI, var_index, OP_PUSHI, 0, OP_PUSH_INDEX);
-        }
-        else {
-            if (compiler->cur_function->vars[var_id].type != compiler->cur_function->vars[var_index].type) error(compiler, "Incompatible type", __LINE__);
-            add_bytes(compiler->code, 2, OP_PUSH, var_index);
+        if (compiler->cur_function->vars[var_id].type != compile_expr(compiler)) {
+            error(compiler, "Incompatible type", __LINE__);
         }
     }
     else {
@@ -366,10 +345,11 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
     add_bytes(compiler->code, 2, OP_POP, var_id);
 }
 
-void compile_let(Compiler *compiler) {
+int compile_let(Compiler *compiler, int in_expr) {
     int cur_byte_pos;
     int var_index = find_var(compiler, peek_token(compiler).ident_name);
 
+    int var_type = 0;
     if (peek_token(compiler).kind == LNG) {
         if (check_for_when(compiler)) {
             add_bytes(compiler->code, 4, OP_PUSHI, compiler->code->line_positions->count-1, OP_INC, OP_JMP);
@@ -384,8 +364,8 @@ void compile_let(Compiler *compiler) {
         expect_token(compiler, EQUALS);
 
         consume_token(compiler);
-        compile_expr(compiler);
-        add_bytes(compiler->code, 3, OP_PUSHI, var_index, OP_SET_LEN);
+        var_type = compile_expr(compiler);
+        add_bytes(compiler->code, 3, OP_PUSHI, var_index, in_expr ? OP_SETP_LEN : OP_SET_LEN);
     }
     else if (compiler->tokens->toks[compiler->pos+2].kind == AT) {
         if (check_for_when(compiler)) {
@@ -404,8 +384,8 @@ void compile_let(Compiler *compiler) {
 
         consume_token(compiler);
         if (compiler->cur_function->vars[var_index].type-2 != compile_expr(compiler)) error(compiler, "Incompatible type", __LINE__);
-
-        da_append(compiler->code, OP_SET_INDEX, bytes);
+        var_type = compiler->cur_function->vars[var_index].type-2;
+        da_append(compiler->code, in_expr ? OP_SETP_INDEX : OP_SET_INDEX, bytes);
     }
     else if (var_index != -1 && compiler->cur_function->vars[var_index].type > 1) {
         if (check_for_when(compiler)) {
@@ -418,8 +398,8 @@ void compile_let(Compiler *compiler) {
 
         consume_token(compiler);
         if (compiler->cur_function->vars[var_index].type-2 != compile_expr(compiler)) error(compiler, "Incompatible type", __LINE__);
-
-        da_append(compiler->code, OP_SET_INDEX, bytes);
+        var_type = compiler->cur_function->vars[var_index].type-2;
+        da_append(compiler->code, in_expr ? OP_SETP_INDEX : OP_SET_INDEX, bytes);
     }
     else {
         if (check_for_when(compiler)) {
@@ -465,6 +445,8 @@ void compile_let(Compiler *compiler) {
             compiler->cur_function->vars[compiler->cur_function->vars_count-1].type = compile_expr(compiler);
             add_bytes(compiler->code, 2, OP_POP, var_id);
         }
+        if (in_expr) add_bytes(compiler->code, 2, OP_PUSH, compiler->cur_function->vars_count-1);
+        var_type = compiler->cur_function->vars[compiler->cur_function->vars_count-1].type;
     }
 
     if (peek_token(compiler).kind == WHEN) {
@@ -472,6 +454,8 @@ void compile_let(Compiler *compiler) {
         compile_when_condition(compiler, cur_byte_pos);
     }
     if (peek_token(compiler).kind == CATCH) compiler->pos += 2;
+
+    return var_type;
 }
 
 int compile_chg(Compiler *compiler) {
@@ -638,9 +622,7 @@ int compile_expr(Compiler *compiler) {
         break;
     }
     case LET:
-        compile_let(compiler);
-        type = compiler->cur_function->vars[compiler->cur_function->vars_count-1].type;
-        add_bytes(compiler->code, 2, OP_PUSH, compiler->cur_function->vars_count-1);
+        type = compile_let(compiler, 1);
         break;
     case CHG: {
         int index = compile_chg(compiler);
@@ -762,7 +744,7 @@ Code *compile(Token_List *tokens) {
                 ret_val_pos = compile_function_declaration(&compiler);
                 break;
             case LET:
-                compile_let(&compiler);
+                compile_let(&compiler, 0);
                 if (peek_token(&compiler).kind != SEMICOLON) expect_token(&compiler, THEN);
                 break;
             case CHG:

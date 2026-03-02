@@ -392,6 +392,25 @@ void run_bytecode(Code *code) {
             consume_byte(code, &cur_byte);
             break;
         }
+        case OP_SETP_INDEX: {
+            int val = pop(&stack_ptr).as.integer;
+            int index = pop(&stack_ptr).as.integer;
+            int array = pop(&stack_ptr).as.integer + scope*256;
+            ((Array *)vars[array].as.pointer)->items[index].integer = val;
+            push_i(&stack_ptr, ((Array *)vars[array].as.pointer)->items[index].integer);
+            consume_byte(code, &cur_byte);
+            break;
+        }
+        case OP_SETP_LEN: {
+            int array = pop(&stack_ptr).as.integer + scope*256;
+            int len = pop(&stack_ptr).as.integer;
+            ((Array *)vars[array].as.pointer)->len = len;
+            ((Array *)vars[array].as.pointer)->items = realloc(((Array *)vars[array].as.pointer)->items, len * sizeof(Value32));
+            assert(((Array *)vars[array].as.pointer)->items != NULL);
+            push_i(&stack_ptr, len);
+            consume_byte(code, &cur_byte);
+            break;
+        }
         case OP_PUSH_INDEX: {
             int index = pop(&stack_ptr).as.integer;
             push_i(&stack_ptr, ((Array *)vars[pop(&stack_ptr).as.integer + scope*256].as.pointer)->items[index].integer);
@@ -460,6 +479,8 @@ void disassemble_byte(uint8_t byte, int cur_byte) {
     case OP_SET_ARRAY: printf("\tSET_ARRAY");     break;
     case OP_SET_INDEX: printf("\tSET_INDEX");     break;
     case OP_SET_LEN: printf("\tSET_LEN");         break;
+    case OP_SETP_INDEX: printf("\tSETP_INDEX");   break;
+    case OP_SETP_LEN: printf("\tSETP_LEN");       break;
     case OP_PUSH: printf("\tPUSH");               break;
     case OP_PUSH_INDEX: printf("\tPUSH_INDEX");   break;
     case OP_PUSHI: printf("\tPUSHI");             break;
@@ -530,6 +551,14 @@ char *disassemble(Code *code) {
             break;
         case OP_SET_LEN:
             sb_appendf(&disasm, "\tSET_LEN\n");
+            consume_byte(code, &i);
+            break;
+        case OP_SETP_INDEX:
+            sb_appendf(&disasm, "\tSETP_INDEX\n");
+            consume_byte(code, &i);
+            break;
+        case OP_SETP_LEN:
+            sb_appendf(&disasm, "\tSETP_LEN\n");
             consume_byte(code, &i);
             break;
         case OP_PUSH:
