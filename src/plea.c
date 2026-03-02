@@ -43,10 +43,8 @@ void run(char *src) {
     printf("%s", disassemble(code));
 #endif
 
-#ifndef PLEA_DEBUG
-#ifndef PLEA_LEXER_DEBUG
+#if !defined(PLEA_LEXER_DEBUG) && !defined(PLEA_DEBUG)
     run_bytecode(code);
-#endif
 #endif
 
     free_code(code);

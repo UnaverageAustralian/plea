@@ -33,12 +33,22 @@ void add_token(Token_List *token_list, Token_Kind token_kind) {
     token_list->count++;
 }
 
+void lex_error(char *message) {
+    fprintf(stderr, "%s", message);
+    exit(1);
+}
+
 char consume(Lexer *lexer) {
-    return *(lexer->src + lexer->pos++);
+    lexer->pos++;
+    return lexer->src[lexer->pos];
 }
 
 char peek(Lexer *lexer) {
-    return *(lexer->src + lexer->pos);
+    return lexer->src[lexer->pos+1];
+}
+
+char current(Lexer *lexer) {
+    return lexer->src[lexer->pos];
 }
 
 void lex_number(Lexer *lexer) {
@@ -46,27 +56,22 @@ void lex_number(Lexer *lexer) {
     Token_Kind *token_kind = &lexer->tokens->toks[lexer->tokens->count-1].kind;
     char number[48];
 
-    char c = lexer->src[lexer->pos-1];
+    char c = current(lexer);
     if (c == '-') {
         number[0] = '-';
         c = consume(lexer);
     }
 
-    int i = 0;
-    while (c != '\n') {
+    for (int i = 0; c != '\n'; i++) {
         if (c == '.') *token_kind = REAL;
 
-        if (i >= 47) {
-            fprintf(stderr, "Number is too big");
-            exit(1);
-        }
+        if (i >= 47) lex_error("Number is too big");
 
         number[i] = c;
         number[i+1] = '\0';
 
         if (peek(lexer) == '\0' || (!isdigit(peek(lexer)) && peek(lexer) != '.')) break;
         c = consume(lexer);
-        i++;
     }
 
     if (*token_kind == REAL) {
@@ -82,23 +87,18 @@ void lex_ident_or_keyword(Lexer *lexer) {
     char *ident_name = lexer->tokens->toks[lexer->tokens->count-1].ident_name;
     Token_Kind *token_kind = &lexer->tokens->toks[lexer->tokens->count-1].kind;
 
-    int i = 0;
-    char c = *(lexer->src + lexer->pos - 1);
-    while (c != '\n') {
-        if (i > 255) {
-            fprintf(stderr, "Identifier is too long");
-            exit(1);
-        }
+    char c = current(lexer);
+    for (int i = 0; c != '\n'; i++) {
+        if (i > 255) lex_error("Identifier is too long");
 
         ident_name[i] = c;
         ident_name[i+1] = '\0';
 
         if (peek(lexer) == '\0' || (!isalnum(peek(lexer)) && peek(lexer) != '_')) break;
         c = consume(lexer);
-        i++;
     }
 
-    for (i = 0; i < NUM_KEYWORDS; i++) {
+    for (int i = 0; i < NUM_KEYWORDS; i++) {
         if (strcmp(ident_name, keywords[i]) == 0) {
             *token_kind = i+11;
             break;
@@ -115,19 +115,10 @@ void lex_string(Lexer *lexer) {
     char c = consume(lexer);
     int i = 0;
     while (c != '\"') {
-        if (c == '\n') {
-            fprintf(stderr, "Premature end of line");
-            exit(1);
-        }
-        if (c == '\0') {
-            fprintf(stderr, "Premature end of file");
-            exit(1);
-        }
+        if (c == '\n') lex_error("Premature end of line");
+        if (c == '\0') lex_error("Premature end of file");
 
-        if (i >= 255) {
-            fprintf(stderr, "I'm not reading all that");
-            exit(1);
-        }
+        if (i >= 255) lex_error("I'm not reading all that");
 
         ident_name[i] = c;
         c = consume(lexer);
@@ -149,11 +140,8 @@ Token_List lex(char *src) {
         .tokens = &tokens
     };
 
-    char c;
-    for (; ;) {
-        c = consume(&lexer);
-        if (c == '\0') break;
-
+    char c = current(&lexer);
+    while (c != '\0') {
         switch (c) {
         case '[': add_token(&tokens, L_BRACKET); break;
         case ']': add_token(&tokens, R_BRACKET); break;
@@ -203,11 +191,11 @@ Token_List lex(char *src) {
                 lex_number(&lexer);
             }
             else {
-                fprintf(stderr, "Invalid token");
-                exit(1);
+                lex_error("Invalid token");
             }
             break;
         }
+        c = consume(&lexer);
     }
 
     add_token(&tokens, T_EOF);
@@ -265,8 +253,6 @@ char *token_to_string(Token_Kind type) {
     case SH_FLOAT:  return "SH_FLOAT";
     case NONE:      return "NONE";
     case T_EOF:     return "EOF";
-    default:
-        fprintf(stderr, "Could not convert token to string");
-        exit(1);
+    default: lex_error("Could not convert token to string");
     }
 }
