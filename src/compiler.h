@@ -87,6 +87,7 @@ typedef struct {
     Function *cur_function;
     int pos;
     int is_in_function;
+    int ret_val_pos;
 } Compiler;
 
 Code *compile(Token_List *tokens);

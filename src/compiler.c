@@ -499,7 +499,7 @@ int compile_chg(Compiler *compiler) {
 
 int compile_function_call(Compiler *compiler) {
     int type = 0;
-    char *function_name = strdup(consume_token(compiler).ident_name);
+    char *function_name = strdup(cur_token(compiler).ident_name);
     expect_token(compiler, IN);
 
     int cur_byte_pos;
@@ -571,6 +571,30 @@ int compile_function_call(Compiler *compiler) {
     return type;
 }
 
+void compile_line(Compiler *compiler);
+
+int compile_call(Compiler *compiler) {
+    int type = 0;
+
+    consume_token(compiler);
+    if (peek_token(compiler).kind == IN) {
+        type = compile_function_call(compiler);
+        return type;
+    }
+
+    while (cur_token(compiler).kind != RETURN) {
+        compile_line(compiler);
+        consume_token(compiler);
+    }
+    consume_token(compiler);
+
+    if (cur_token(compiler).kind == VOID)
+        type = 4;
+    else
+        type = compile_expr(compiler);
+    return type;
+}
+
 int compile_expr(Compiler *compiler) {
     int type = 0;
     switch (cur_token(compiler).kind) {
@@ -630,9 +654,12 @@ int compile_expr(Compiler *compiler) {
         add_bytes(compiler->code, 2, OP_PUSH, index);
         break;
     }
-    case CALL:
-        type = compile_function_call(compiler);
+    case CALL: {
+        int cur_var_count = compiler->cur_function->vars_count;
+        type = compile_call(compiler);
+        compiler->cur_function->vars_count = cur_var_count;
         break;
+    }
     default: error(compiler, "Invalid expression", __LINE__);
     }
     return type;
@@ -704,7 +731,49 @@ void init_compiler(Token_List *tokens, Compiler *compiler) {
         .pos = 0,
         .is_in_function = 0,
         .cur_function = NULL,
+        .ret_val_pos = 0,
     };
+}
+
+void compile_line(Compiler *compiler) {
+    switch (cur_token(compiler).kind) {
+    case SEMICOLON: {
+        int cur_position = compiler->pos;
+
+        compiler->pos = compiler->ret_val_pos;
+        compiler->cur_function->return_type = compile_expr(compiler);
+        da_append(compiler->code, OP_RET, bytes);
+        compiler->pos = cur_position;
+
+        compiler->is_in_function = 0;
+        break;
+    }
+    case FNCTN:
+        compiler->ret_val_pos = compile_function_declaration(compiler);
+        break;
+    case LET:
+        compile_let(compiler, 0);
+        if (peek_token(compiler).kind != SEMICOLON) expect_token(compiler, THEN);
+        break;
+    case CHG:
+        compile_chg(compiler);
+        if (peek_token(compiler).kind != SEMICOLON) expect_token(compiler, THEN);
+        break;
+    case CALL: {
+        int cur_var_count = compiler->cur_function->vars_count;
+        compile_call(compiler);
+        compiler->cur_function->vars_count = cur_var_count;
+
+        if (peek_token(compiler).kind != SEMICOLON) expect_token(compiler, THEN);
+        break;
+    }
+    case JMP:
+        compile_jump(compiler);
+        if (peek_token(compiler).kind != SEMICOLON) expect_token(compiler, THEN);
+        break;
+    default: error(compiler, "MALFORMED TOKEN", __LINE__);
+    }
+    da_append(compiler->code->line_positions, compiler->code->count, positions);
 }
 
 Code *compile(Token_List *tokens) {
@@ -724,44 +793,10 @@ Code *compile(Token_List *tokens) {
 
     da_append(compiler.code->line_positions, compiler.code->count, positions);
 
-    int ret_val_pos = 0;
     Token token = compiler.tokens->toks[compiler.pos];
     while (token.kind != T_EOF) {
         if (compiler.is_in_function) {
-            switch (token.kind) {
-            case SEMICOLON: {
-                int cur_position = compiler.pos;
-
-                compiler.pos = ret_val_pos;
-                compiler.cur_function->return_type = compile_expr(&compiler);
-                da_append(compiler.code, OP_RET, bytes);
-                compiler.pos = cur_position;
-
-                compiler.is_in_function = 0;
-                break;
-            }
-            case FNCTN:
-                ret_val_pos = compile_function_declaration(&compiler);
-                break;
-            case LET:
-                compile_let(&compiler, 0);
-                if (peek_token(&compiler).kind != SEMICOLON) expect_token(&compiler, THEN);
-                break;
-            case CHG:
-                compile_chg(&compiler);
-                if (peek_token(&compiler).kind != SEMICOLON) expect_token(&compiler, THEN);
-                break;
-            case CALL:
-                compile_function_call(&compiler);
-                if (peek_token(&compiler).kind != SEMICOLON) expect_token(&compiler, THEN);
-                break;
-            case JMP:
-                compile_jump(&compiler);
-                if (peek_token(&compiler).kind != SEMICOLON) expect_token(&compiler, THEN);
-                break;
-            default: error(&compiler, "MALFORMED TOKEN", __LINE__);
-            }
-            da_append(compiler.code->line_positions, compiler.code->count, positions);
+            compile_line(&compiler);
             token = consume_token(&compiler);
         }
         else if (token.kind == FNCTN) {
