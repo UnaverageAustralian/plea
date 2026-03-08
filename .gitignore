@@ -1,3 +1,2 @@
-cmake-build-debug
-.clang-format
-.idea
+plea
+examples/test.plea
