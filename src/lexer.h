@@ -16,7 +16,7 @@ typedef struct {
         char ident_name[256];
         int int_val;
         float real_val;
-    };
+    } val;
 } Token;
 
 typedef struct {

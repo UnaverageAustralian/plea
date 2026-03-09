@@ -5,13 +5,13 @@
 
 void display_token(Token token) {
     if (token.kind == IDENT || token.kind == STRING) {
-        printf("%s, %s\n", token_to_string(token.kind), token.ident_name);
+        printf("%s, %s\n", token_to_string(token.kind), token.val.ident_name);
     }
     else if (token.kind == INTEGER) {
-        printf("%s, %d\n", token_to_string(token.kind), token.int_val);
+        printf("%s, %d\n", token_to_string(token.kind), token.val.int_val);
     }
     else if (token.kind == FLOAT) {
-        printf("%s, %f\n", token_to_string(token.kind), token.real_val);
+        printf("%s, %f\n", token_to_string(token.kind), token.val.real_val);
     }
     else {
         printf("%s\n", token_to_string(token.kind));

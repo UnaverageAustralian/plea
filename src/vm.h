@@ -9,14 +9,8 @@ typedef struct {
 } String_Builder;
 
 typedef struct {
-    union {
-        uint8_t var1;
-        int val1;
-    };
-    union {
-        uint8_t var2;
-        int val2;
-    };
+    int val1;
+    int val2;
     int loc;
     uint8_t mode;
     uint8_t is_promise;

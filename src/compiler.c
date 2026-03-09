@@ -18,6 +18,14 @@
         (a)->count++;                                                       \
     } while (0)
 
+char *plea_strdup(char *str) {
+    size_t length = strlen(str)+1;
+    char *dup = malloc(length);
+    if (!dup) return NULL;
+    memcpy(dup, str, length);
+    return dup;
+}
+
 void add_constant(Constant_List *constant_list, int val) {
     if (constant_list->count == constant_list->capacity) {
         constant_list->capacity *= 2;
@@ -35,7 +43,7 @@ void add_function(Function_List *function_list, char *name, int location) {
         assert(function_list->functions != NULL);
     }
     function_list->functions[function_list->count] = (Function){
-        .name = strdup(name),
+        .name = plea_strdup(name),
         .location = location,
         .arity = 0,
         .vars = malloc(256 * sizeof(Var)),
@@ -55,7 +63,7 @@ void add_bytes(Code *code, int num_bytes, ...) {
 
 void add_string(Code *code, char *str) {
     size_t len = strlen(str);
-    for (int i = 0; i < len; i++) {
+    for (unsigned i = 0; i < len; i++) {
         da_append(code, str[i], bytes);
     }
     da_append(code, '\0', bytes);
@@ -136,7 +144,7 @@ Token get_and_expect_token(Compiler *compiler, Token_Kind token_kind) {
         pos++;
 
         while (compiler->tokens->toks[pos].kind != THEN && compiler->tokens->toks[pos].kind != SEMICOLON && compiler->tokens->toks[pos].kind != CALLS) {
-            if (compiler->tokens->toks[pos].kind == CATCH && compiler->tokens->toks[pos+1].kind == ERROR) return (Token){ .kind = NONE, .int_val = 0 };
+            if (compiler->tokens->toks[pos].kind == CATCH && compiler->tokens->toks[pos+1].kind == ERROR) return (Token){ .kind = NONE, .val.int_val = 0 };
             pos++;
         }
 
@@ -159,7 +167,7 @@ int find_var(Compiler *compiler, char *name) {
 }
 
 int check_for_when(Compiler* compiler) {
-    for (int i = compiler->pos; i < compiler->tokens->count; i++) {
+    for (unsigned i = compiler->pos; i < compiler->tokens->count; i++) {
         Token token = compiler->tokens->toks[i];
         if (token.kind == WHEN) return 1;
         if (token.kind == THEN || token.kind == SEMICOLON) break;
@@ -189,7 +197,7 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
     switch (lhs.kind) {
     case IDENT:
         mode |= 1;
-        int var_index = find_var(compiler, lhs.ident_name);
+        int var_index = find_var(compiler, lhs.val.ident_name);
         if (var_index != -1) {
             add_bytes(compiler->code, 2, OP_PUSHI, var_index);
         }
@@ -198,14 +206,14 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
         }
         break;
     case REAL:
-    case INTEGER: add_bytes(compiler->code, 2, OP_PUSHI, lhs.int_val); break;
+    case INTEGER: add_bytes(compiler->code, 2, OP_PUSHI, lhs.val.int_val); break;
     default: error(compiler, "MALFORMED TOKEN", __LINE__);
     }
 
     switch (rhs.kind) {
     case IDENT:
         mode |= 2;
-        int var_index = find_var(compiler, rhs.ident_name);
+        int var_index = find_var(compiler, rhs.val.ident_name);
         if (var_index != -1) {
             add_bytes(compiler->code, 2, OP_PUSHI, var_index);
         }
@@ -214,7 +222,7 @@ void compile_when_condition(Compiler* compiler, int cur_byte_pos) {
         }
         break;
     case REAL:
-    case INTEGER: add_bytes(compiler->code, 2, OP_PUSHI, rhs.int_val); break;
+    case INTEGER: add_bytes(compiler->code, 2, OP_PUSHI, rhs.val.int_val); break;
     default: error(compiler, "MALFORMED TOKEN", __LINE__);
     }
     add_bytes(compiler->code, 2, OP_PUSHI, mode);
@@ -244,7 +252,7 @@ int compile_function_declaration(Compiler *compiler) {
     while (peek_token(compiler).kind != NM) consume_token(compiler);
 
     expect_token(compiler, NM);
-    char *name = compiler->tokens->toks[compiler->pos+1].ident_name;
+    char *name = compiler->tokens->toks[compiler->pos+1].val.ident_name;
 
     da_append(compiler->code, OP_FNCTN, bytes);
     add_string(compiler->code, name);
@@ -257,7 +265,7 @@ int compile_function_declaration(Compiler *compiler) {
     while (peek_token(compiler).kind != CALLS) {
         expect_token(compiler, LET);
 
-        char *parameter_name = strdup(consume_token(compiler).ident_name);
+        char *parameter_name = plea_strdup(consume_token(compiler).val.ident_name);
         compiler->cur_function->arity++;
 
         expect_token(compiler, IN);
@@ -317,7 +325,7 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
             if (cur_instruction != OP_INC && cur_instruction != OP_DEC) error(compiler, "MALFORMED TOKEN", __LINE__);
 
             if (peek_token(compiler).kind == INTEGER || peek_token(compiler).kind == REAL) {
-                int val = peek_token(compiler).int_val;
+                int val = peek_token(compiler).val.int_val;
                 if (val >= 256 || val < 0) {
                     add_bytes(compiler->code, 3, OP_CONST, compiler->code->constant_list->count, cur_instruction == OP_INC ? OP_ADD : OP_SUB);
                     add_constant(compiler->code->constant_list, val-1);
@@ -327,7 +335,7 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
                 }
             }
             else if (peek_token(compiler).kind == IDENT) {
-                int var_index = find_var(compiler, peek_token(compiler).ident_name);
+                int var_index = find_var(compiler, peek_token(compiler).val.ident_name);
                 if (var_index != -1) {
                     add_bytes(compiler->code, 4, OP_PUSH, var_index, cur_instruction == OP_INC ? OP_DEC : OP_INC, cur_instruction == OP_INC ? OP_ADD : OP_SUB);
                 }
@@ -339,6 +347,7 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
                 error(compiler, "MALFORMED TOKEN", __LINE__);
             }
             break;
+        default: error(compiler, "Unreachable", __LINE__);
         }
         consume_token(compiler);
     }
@@ -347,7 +356,7 @@ void compile_chg_expr(Compiler *compiler, int var_id) {
 
 int compile_let(Compiler *compiler, int in_expr) {
     int cur_byte_pos;
-    int var_index = find_var(compiler, peek_token(compiler).ident_name);
+    int var_index = find_var(compiler, peek_token(compiler).val.ident_name);
 
     int var_type = 0;
     if (peek_token(compiler).kind == LNG) {
@@ -357,7 +366,7 @@ int compile_let(Compiler *compiler, int in_expr) {
         }
         consume_token(compiler);
         expect_token(compiler, OF);
-        var_index = find_var(compiler, consume_token(compiler).ident_name);
+        var_index = find_var(compiler, consume_token(compiler).val.ident_name);
 
         expect_token(compiler, L_BRACKET);
         expect_token(compiler, R_BRACKET);
@@ -407,13 +416,13 @@ int compile_let(Compiler *compiler, int in_expr) {
             add_bytes(compiler->code, 4, OP_PUSHI, compiler->code->line_positions->count-1, OP_INC, OP_JMP);
             cur_byte_pos = (int)compiler->code->count;
         }
-        compiler->cur_function->vars[compiler->cur_function->vars_count] = (Var){ .name = strdup(consume_token(compiler).ident_name), .type = 0 };
+        compiler->cur_function->vars[compiler->cur_function->vars_count] = (Var){ .name = plea_strdup(consume_token(compiler).val.ident_name), .type = 0 };
         expect_token(compiler, EQUALS);
 
         int var_id = compiler->cur_function->vars_count;
         int type = peek_token(compiler).kind;
         if (type == INTEGER || type == REAL) {
-            int val = consume_token(compiler).int_val;
+            int val = consume_token(compiler).val.int_val;
 
             if (val < 256 && val >= 0) {
                 add_bytes(compiler->code, 3, OP_SET_VAR, compiler->cur_function->vars_count, val);
@@ -465,18 +474,18 @@ int compile_chg(Compiler *compiler) {
         cur_byte_pos = (int)compiler->code->count;
     }
 
-    int var_index = find_var(compiler, peek_token(compiler).ident_name);
+    int var_index = find_var(compiler, peek_token(compiler).val.ident_name);
     if (var_index == -1) error(compiler, "Variable not found", __LINE__);
 
     consume_token(compiler);
     expect_token(compiler, COMMA);
 
     if (peek_token(compiler).kind == INTEGER || peek_token(compiler).kind == REAL) {
-        if (compiler->cur_function->vars[var_index].type != peek_token(compiler).kind - 22) {
+        if ((unsigned)compiler->cur_function->vars[var_index].type != peek_token(compiler).kind - 22) {
             error(compiler, "Incompatible type", __LINE__);
         }
 
-        int val = consume_token(compiler).int_val;
+        int val = consume_token(compiler).val.int_val;
         if (val < 256 && val >= 0) {
             add_bytes(compiler->code, 3, OP_SET_VAR, var_index, val);
         }
@@ -499,7 +508,7 @@ int compile_chg(Compiler *compiler) {
 
 int compile_function_call(Compiler *compiler) {
     int type = 0;
-    char *function_name = strdup(cur_token(compiler).ident_name);
+    char *function_name = plea_strdup(cur_token(compiler).val.ident_name);
     expect_token(compiler, IN);
 
     int cur_byte_pos;
@@ -508,7 +517,7 @@ int compile_function_call(Compiler *compiler) {
         cur_byte_pos = (int)compiler->code->count;
     }
 
-    int function;
+    unsigned function;
     for (function = 0; function < compiler->code->function_list->count; function++) {
         if (strcmp(function_name, compiler->code->function_list->functions[function].name) == 0) break;
         if (function == compiler->code->function_list->count - 1 && strcmp(function_name, "print") != 0) {
@@ -519,7 +528,7 @@ int compile_function_call(Compiler *compiler) {
     int arguments = 0;
     for (; ;) {
         arguments++;
-        if (peek_token(compiler).kind == IDENT && strcmp(peek_token(compiler).ident_name, "input") == 0) {
+        if (peek_token(compiler).kind == IDENT && strcmp(peek_token(compiler).val.ident_name, "input") == 0) {
             if (strcmp(function_name, "print") != 0 && compiler->code->function_list->functions[function].vars[arguments-1].type != 2) {
                 error(compiler, "Argument has wrong type", __LINE__);
             }
@@ -600,26 +609,26 @@ int compile_expr(Compiler *compiler) {
     switch (cur_token(compiler).kind) {
     case REAL:
         type = 1;
-        if (cur_token(compiler).int_val < 256 && cur_token(compiler).int_val >= 0) {
-            add_bytes(compiler->code, 2, OP_PUSHI, cur_token(compiler).int_val);
+        if (cur_token(compiler).val.int_val < 256 && cur_token(compiler).val.int_val >= 0) {
+            add_bytes(compiler->code, 2, OP_PUSHI, cur_token(compiler).val.int_val);
         }
         else {
             add_bytes(compiler->code, 2, OP_CONST, compiler->code->constant_list->count);
-            add_constant(compiler->code->constant_list, cur_token(compiler).int_val);
+            add_constant(compiler->code->constant_list, cur_token(compiler).val.int_val);
         }
         break;
     case INTEGER:
         type = 0;
-        if (cur_token(compiler).int_val < 256 && cur_token(compiler).int_val >= 0) {
-            add_bytes(compiler->code, 2, OP_PUSHI, cur_token(compiler).int_val);
+        if (cur_token(compiler).val.int_val < 256 && cur_token(compiler).val.int_val >= 0) {
+            add_bytes(compiler->code, 2, OP_PUSHI, cur_token(compiler).val.int_val);
         }
         else {
             add_bytes(compiler->code, 2, OP_CONST, compiler->code->constant_list->count);
-            add_constant(compiler->code->constant_list, cur_token(compiler).int_val);
+            add_constant(compiler->code->constant_list, cur_token(compiler).val.int_val);
         }
         break;
     case IDENT: {
-        int var_index = find_var(compiler, cur_token(compiler).ident_name);
+        int var_index = find_var(compiler, cur_token(compiler).val.ident_name);
         if (var_index == -1) error(compiler, "Variable not found", __LINE__);
 
         if (peek_token(compiler).kind == AT) {
@@ -783,7 +792,7 @@ Code *compile(Token_List *tokens) {
     if (tokens->toks[0].kind == BEG) {
         da_append(compiler.code, OP_BEG, bytes);
         consume_token(&compiler);
-        add_string(compiler.code, tokens->toks[1].ident_name);
+        add_string(compiler.code, tokens->toks[1].val.ident_name);
         expect_token(&compiler, SEMICOLON);
     }
 
@@ -806,7 +815,7 @@ Code *compile(Token_List *tokens) {
             token = consume_token(&compiler);
         }
     }
-    for (int i = 0; i < compiler.code->function_list->count; i++) {
+    for (unsigned i = 0; i < compiler.code->function_list->count; i++) {
         free(compiler.code->function_list->functions[i].vars);
     }
     compiler.code->line_positions->count--;

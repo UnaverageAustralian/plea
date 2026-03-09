@@ -199,7 +199,7 @@ void run_bytecode(Code *code) {
         case OP_CALL:
             consume_byte(code, &cur_byte);
             char *func_name = (char *)&code->bytes[cur_byte];
-            for (int i = 0; i < code->function_list->count; i++) {
+            for (unsigned i = 0; i < code->function_list->count; i++) {
                 if (strcmp(func_name, code->function_list->functions[i].name) == 0) {
                     while (code->bytes[cur_byte] != 0) {
                         consume_byte(code, &cur_byte);
@@ -240,7 +240,7 @@ void run_bytecode(Code *code) {
                         }
                         else {
                             Array *char_array = (Array *)v.as.pointer;
-                            for (int j = 0; j < char_array->len; j++) {
+                            for (unsigned j = 0; j < char_array->len; j++) {
                                 printf("%c", char_array->items[j].integer);
                             }
                             push_p(&stack_ptr, (uintptr_t)char_array);
@@ -255,7 +255,7 @@ void run_bytecode(Code *code) {
             }
             break;
         case OP_RET:
-            for (int i = 0; i < when_queue.count; i++) {
+            for (unsigned i = 0; i < when_queue.count; i++) {
                 if (when_queue.whens[i].cond == -1) continue;
                 if (when_queue.whens[i].loc < code->function_list->functions[cur_function].location ||
                     (code->function_list->count-cur_function <= 0 && when_queue.whens[i].loc >= code->function_list->functions[cur_function+1].location))
@@ -420,7 +420,7 @@ void run_bytecode(Code *code) {
         default: break;
         }
 
-        for (int i = 0; i < when_queue.count; i++) {
+        for (unsigned i = 0; i < when_queue.count; i++) {
             if (when_queue.whens[i].cond == -1) continue;
             if (when_queue.whens[i].loc < code->function_list->functions[cur_function].location ||
                 (code->function_list->count-cur_function <= 0 && when_queue.whens[i].loc >= code->function_list->functions[cur_function+1].location))
@@ -518,7 +518,7 @@ char *disassemble(Code *code) {
     };
 
     int i = 0;
-    while (i < code->count) {
+    while ((unsigned)i < code->count) {
         switch (code->bytes[i]) {
         case OP_CONST:
             sb_appendf(&disasm, "\tCONST %d (%d)\n", consume_byte(code, &i), code->constant_list->constants[code->bytes[i]].as.integer);

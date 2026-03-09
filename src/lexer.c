@@ -22,7 +22,7 @@ static const char *keywords[] = {
 void add_token(Token_List *token_list, Token_Kind token_kind) {
     Token token = {
         .kind = token_kind,
-        .int_val = 0
+        .val.int_val = 0
     };
     if (token_list->count == token_list->capacity) {
         token_list->capacity *= 2;
@@ -75,16 +75,16 @@ void lex_number(Lexer *lexer) {
     }
 
     if (*token_kind == REAL) {
-        lexer->tokens->toks[lexer->tokens->count-1].real_val = strtof(number, NULL);
+        lexer->tokens->toks[lexer->tokens->count-1].val.real_val = strtof(number, NULL);
     }
     else {
-        lexer->tokens->toks[lexer->tokens->count-1].int_val = (int)strtol(number, NULL, 10);
+        lexer->tokens->toks[lexer->tokens->count-1].val.int_val = (int)strtol(number, NULL, 10);
     }
 }
 
 void lex_ident_or_keyword(Lexer *lexer) {
     add_token(lexer->tokens, NONE);
-    char *ident_name = lexer->tokens->toks[lexer->tokens->count-1].ident_name;
+    char *ident_name = lexer->tokens->toks[lexer->tokens->count-1].val.ident_name;
     Token_Kind *token_kind = &lexer->tokens->toks[lexer->tokens->count-1].kind;
 
     char c = current(lexer);
@@ -110,7 +110,7 @@ void lex_ident_or_keyword(Lexer *lexer) {
 
 void lex_string(Lexer *lexer) {
     add_token(lexer->tokens, STRING);
-    char *ident_name = lexer->tokens->toks[lexer->tokens->count-1].ident_name;
+    char *ident_name = lexer->tokens->toks[lexer->tokens->count-1].val.ident_name;
 
     char c = consume(lexer);
     int i = 0;
@@ -253,6 +253,6 @@ char *token_to_string(Token_Kind type) {
     case SH_FLOAT:  return "SH_FLOAT";
     case NONE:      return "NONE";
     case T_EOF:     return "EOF";
-    default: lex_error("Could not convert token to string");
+    default: lex_error("Could not convert token to string"); return NULL;
     }
 }
